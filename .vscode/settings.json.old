@@ -1,0 +1,29 @@
+{
+    "cmake.configureOnOpen": true,
+    "cmake.environment": {
+        // We configure clang-10 as our default compiler.
+        // "CC": "/usr/bin/clang-12",
+        // "CXX": "/usr/bin/clang++-12",
+        // "CXXFLAGS": "-stdlib=libc++ -fcoroutines-ts"
+    },
+    "cmake.configureSettings": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "CMAKE_CXX_FLAGS": "-Wno-error=unused-but-set-variable -stdlib=libc++",
+        "CMAKE_CXX_STANDARD": "20"
+    },
+    "files.associations": {
+        "type_traits": "cpp"
+    },
+    // "clangd.path": "/usr/lib/llvm-12/bin/clangd",
+    "clangd.arguments": [
+        "--clang-tidy",
+        "--pch-storage=disk",
+        "--background-index",
+        "--compile-commands-dir=build"
+    ],
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "never",
+    "lldb.dereferencePointers": true,
+    "lldb.consoleMode": "commands"
+}           

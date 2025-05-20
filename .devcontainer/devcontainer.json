@@ -1,0 +1,60 @@
+// For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.134.0/containers/cpp
+{
+	"name": "C++",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": { }
+	},
+	// "runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
+
+	"customizations": {
+		"vscode": {
+			// Set *default* container specific settings.json values on container create.
+			"settings": {
+				"clangd.arguments": [
+					"--clang-tidy",
+					"--pch-storage=disk",
+					"--background-index",
+					"--compile-commands-dir=build"
+				],
+				"C_Cpp.intelliSenseEngine": "disabled",
+				"lldb.showDisassembly": "never",
+				"[cpp]": {
+					"editor.defaultFormatter": "xaver.clang-format"
+			  }		 
+			},
+
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cmake-tools",
+				"ms-vscode.cpptools-extension-pack",
+				"llvm-vs-code-extensions.vscode-clangd",				
+				"xaver.clang-format",
+				"vadimcn.vscode-lldb",
+				"usernamehw.errorlens",
+				"ms-azuretools.vscode-docker"
+			]
+			
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// "postCreateCommand": "gcc -v",
+
+	"mounts": [
+		"source=cpp-devcontainer-bashhistory,target=/commandhistory,type=volume"
+		// "source=${localEnv:HOME}/src/nghttp2,target=/workspaces/nghttp2,type=bind,consistency=cached",
+		// "source=${localEnv:HOME}/src/libunifex,target=/workspaces/libunifex,type=bind,consistency=cached"
+	],
+
+	// Comment out this line to run as root instead.
+	"remoteUser": "vscode",
+	"remoteEnv": {
+		// "PATH": "${containerEnv:PATH}:/workspaces/nghttp2/install/bin"
+	}
+}
