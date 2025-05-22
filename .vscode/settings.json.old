@@ -19,7 +19,8 @@
         "--clang-tidy",
         "--pch-storage=disk",
         "--background-index",
-        "--compile-commands-dir=build"
+        "--compile-commands-dir=build",
+        "--header-insertion=never"
     ],
     "C_Cpp.intelliSenseEngine": "disabled",
     "lldb.displayFormat": "auto",

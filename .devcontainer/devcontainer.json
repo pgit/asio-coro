@@ -16,7 +16,8 @@
 					"--clang-tidy",
 					"--pch-storage=disk",
 					"--background-index",
-					"--compile-commands-dir=build"
+					"--compile-commands-dir=build",
+					"--header-insertion=never"
 				],
 				"C_Cpp.intelliSenseEngine": "disabled",
 				"lldb.showDisassembly": "never",
@@ -46,10 +47,9 @@
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "gcc -v",
 
+	// Mount volume with persistent bash history, see Dockerfile for details.
 	"mounts": [
 		"source=cpp-devcontainer-bashhistory,target=/commandhistory,type=volume"
-		// "source=${localEnv:HOME}/src/nghttp2,target=/workspaces/nghttp2,type=bind,consistency=cached",
-		// "source=${localEnv:HOME}/src/libunifex,target=/workspaces/libunifex,type=bind,consistency=cached"
 	],
 
 	// Comment out this line to run as root instead.
