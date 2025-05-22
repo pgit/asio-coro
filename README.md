@@ -4,6 +4,10 @@ This is a collection of samples for using C++20 coroutines with ASIO.
 # Development Devcontainer
 This project is prepared to run in a Visual Studio Code Development Container.
 
+On first startup, the CMake Plugin will ask you for a kit, select "clang".
+
+You may have to run "clangd: Restart language server" once for it to pick up on `build/compile_commands.json`.
+
 # Echo Servers
 There are several implementations of TCP echo servers in this project, for speed comparison.
 
