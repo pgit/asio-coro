@@ -23,7 +23,8 @@ link_libraries(Boost::system Boost::thread Boost::atomic)
 #
 # Project definition
 #
-add_executable(hello hello.cpp)
-add_executable(echo_server echo_server.cpp)
-add_executable(echo_server_indirect echo_server_indirect.cpp)
-add_executable(async_tcp_echo_server async_tcp_echo_server.cpp)
+file(GLOB SRC_FILES "*.cpp")
+foreach(src_file ${SRC_FILES})
+   get_filename_component(exe_name ${src_file} NAME_WE)
+   add_executable(${exe_name} ${src_file})
+endforeach()
