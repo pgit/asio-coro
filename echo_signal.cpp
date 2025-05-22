@@ -29,6 +29,14 @@ awaitable<void> server(tcp::endpoint endpoint)
    auto executor = co_await this_coro::executor;
    tcp::acceptor acceptor(executor, endpoint);
 
+   signal_set signals(executor, SIGINT, SIGTERM);
+   signals.async_wait(
+      [&](boost::system::error_code error, auto signal)
+      {
+         std::println(" INTERRUPTED (signal {})", signal);
+         acceptor.cancel();
+      });
+
    std::println("listening on {}", acceptor.local_endpoint());
    for (;;)
    {
@@ -40,6 +48,8 @@ awaitable<void> server(tcp::endpoint endpoint)
 int main()
 {
    io_context io_context;
-   co_spawn(io_context, server({tcp::v6(), 55555}), detached);
+   co_spawn(io_context, server({tcp::v6(), 55555}), log_exception_ptr("server"));
+   std::println("running IO context...");
    io_context.run();
+   std::println("running IO context... done");
 }

@@ -4,21 +4,19 @@
 awaitable<void> echo(tcp::socket socket)
 {
    std::println("new connection from {}", socket.remote_endpoint());
+   
    size_t total = 0;
-   try
+   std::array<char, 1024> data;
+   for (;;)
    {
-      std::array<char, 1024> data;
-      for (;;)
-      {
-         std::size_t n = co_await socket.async_read_some(asio::buffer(data), use_awaitable);
-         total += n;
-         co_await async_write(socket, asio::buffer(data, n), use_awaitable);
-      }
-   }
-   catch (const boost::system::system_error& ec)
-   {
-      if (ec.code() != asio::error::eof)
-         throw;
+      auto [ec, n] = co_await socket.async_read_some(asio::buffer(data), as_tuple(use_awaitable));
+      if (ec)
+         break;
+
+      total += n;
+      co_await async_write(socket, asio::buffer(data, n), as_tuple(use_awaitable));
+      if (ec)
+         break;
    }
 
    std::println("echoed {} bytes total", total);

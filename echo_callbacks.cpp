@@ -41,7 +41,7 @@ awaitable<void> echo(tcp::socket socket)
    }
 }
 
-awaitable<void> listener(tcp::endpoint ep)
+awaitable<void> server(tcp::endpoint ep)
 {
    auto executor = co_await this_coro::executor;
    tcp::acceptor acceptor(executor, ep);
@@ -56,6 +56,6 @@ awaitable<void> listener(tcp::endpoint ep)
 int main()
 {
    io_context io_context;
-   co_spawn(io_context, listener({tcp::v6(), 55555}), detached);
+   co_spawn(io_context, server({tcp::v6(), 55555}), detached);
    io_context.run();
 }

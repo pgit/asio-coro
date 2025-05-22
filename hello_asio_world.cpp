@@ -1,13 +1,12 @@
-#include "asio-coro.hpp"
+#include <boost/asio.hpp>
+
+namespace asio = boost::asio;
+using asio::ip::tcp;
 
 class session : public std::enable_shared_from_this<session>
 {
 public:
-   session(tcp::socket socket) : socket_(std::move(socket))
-   {
-      std::println("new connection from {}", socket_.remote_endpoint());
-   }
-
+   session(tcp::socket socket) : socket_(std::move(socket)) {}
    void start() { do_read(); }
 
 private:
@@ -25,12 +24,12 @@ private:
    void do_write(std::size_t length)
    {
       auto self(shared_from_this());
-      boost::asio::async_write(socket_, asio::buffer(data_, length),
-                               [this, self](boost::system::error_code ec, std::size_t /*length*/)
-                               {
-                                  if (!ec)
-                                     do_read();
-                               });
+      async_write(socket_, asio::buffer(data_, length),
+                  [this, self](boost::system::error_code ec, std::size_t /*length*/)
+                  {
+                     if (!ec)
+                        do_read();
+                  });
    }
 
    tcp::socket socket_;
@@ -40,10 +39,9 @@ private:
 class server
 {
 public:
-   server(boost::asio::io_context& io_context, tcp::endpoint endpoint)
+   server(asio::io_context& io_context, tcp::endpoint endpoint)
       : acceptor_(io_context, endpoint), socket_(io_context)
    {
-      std::println("listening on {}", acceptor_.local_endpoint());
       do_accept();
    }
 
@@ -66,7 +64,7 @@ private:
 
 int main(int argc, char* argv[])
 {
-   boost::asio::io_context io_context;
+   asio::io_context io_context;
    server server(io_context, {tcp::v6(), 55555});
    io_context.run();
 }
