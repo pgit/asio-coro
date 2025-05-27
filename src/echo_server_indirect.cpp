@@ -23,7 +23,7 @@ awaitable<void> echo(tcp::socket socket)
          total += co_await echo_once(socket);
       }
    }
-   catch (boost::system::error_code& ec)
+   catch (error_code& ec)
    {
       std::println("{}", ec.message());
    }

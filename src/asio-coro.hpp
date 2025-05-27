@@ -9,8 +9,9 @@
 #include <boost/asio/use_awaitable.hpp>
 
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
-using namespace asio;
+using namespace asio;  // in case we want to qualify explicitly
 using ip::tcp;
+using boost::system::error_code;
 
 /// Normalize mapped IPv4 address ([::ffff:127.0.0.1]) to an actual V4 address (127.0.0.1).
 inline ip::address normalize(const ip::address& addr)
@@ -42,7 +43,7 @@ struct std::formatter<tcp::endpoint> : std::formatter<std::string>
    }
 };
 
-inline std::string what(const boost::system::error_code ec) { return ec.message(); }
+inline std::string what(const error_code ec) { return ec.message(); }
 
 inline std::string what(const std::exception_ptr& ptr)
 {
@@ -65,12 +66,12 @@ inline std::string what(const std::exception_ptr& ptr)
    }
 }
 
-inline auto log_exception_ptr()
+inline auto log_exception()
 {
    return [](const std::exception_ptr& ptr) { std::println("{}", what(ptr)); };
 }
 
-inline auto log_exception_ptr(std::string_view prefix)
+inline auto log_exception(std::string_view prefix)
 {
    return [=](const std::exception_ptr& ptr) { std::println("{}: {}", prefix, what(ptr)); };
 }

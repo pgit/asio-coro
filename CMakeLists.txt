@@ -1,8 +1,32 @@
 cmake_minimum_required(VERSION 3.30)
-project(asio_coro VERSION 0.0.1)
+project(asio-coro VERSION 0.0.1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 set(CMAKE_CXX_STANDARD 23)
+
+if (CMAKE_BUILD_TYPE MATCHES Debug)
+    # add_compile_definitions(BOOST_ASIO_ENABLE_BUFFER_DEBUGGING)
+
+    # ASIO handler tracking output (very noisy)
+    # add_compile_definitions(BOOST_ASIO_ENABLE_HANDLER_TRACKING)
+    
+    # thread sanitizer
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+    
+    # address sanitizer
+    # add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    # add_link_options(-fsanitize=address)
+
+    # include(CodeCoverage)
+    # append_coverage_compiler_flags()
+    # SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
+endif()
+add_compile_options(-stdlib=libc++)
+add_link_options(-stdlib=libc++ -lstdc++fs)
+
+# needed for ranges/v3 starting with clang 19
+add_compile_options(-Wno-deprecated-declarations)
 
 # --------------------------------------------------------------------------------------------------
 #
@@ -20,11 +44,6 @@ link_libraries(OpenSSL::SSL)
 link_libraries(Boost::system Boost::thread Boost::atomic)
 
 # --------------------------------------------------------------------------------------------------
-#
-# Project definition
-#
-file(GLOB SRC_FILES "*.cpp")
-foreach(src_file ${SRC_FILES})
-   get_filename_component(exe_name ${src_file} NAME_WE)
-   add_executable(${exe_name} ${src_file})
-endforeach()
+
+add_subdirectory(src)
+add_subdirectory(test)

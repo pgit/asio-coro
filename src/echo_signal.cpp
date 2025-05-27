@@ -24,6 +24,18 @@ awaitable<void> echo(tcp::socket socket)
    std::println("echoed {} bytes total", total);
 }
 
+using ReadSome = void(error_code, size_t);
+
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(ReadSome) CompletionToken>
+auto async_read_some(mutable_buffer buffer, CompletionToken&& token)
+{
+   return async_initiate<CompletionToken, ReadSome>(
+      [&](completion_handler_for<ReadSome>auto&& handler, mutable_buffer buffer) { //
+         std::move(handler)(error_code{}, 0 /* bytes_written */);
+      },
+      token, buffer);
+}
+
 awaitable<void> server(tcp::endpoint endpoint)
 {
    auto executor = co_await this_coro::executor;
@@ -31,7 +43,7 @@ awaitable<void> server(tcp::endpoint endpoint)
 
    signal_set signals(executor, SIGINT, SIGTERM);
    signals.async_wait(
-      [&](boost::system::error_code error, auto signal)
+      [&](error_code error, auto signal)
       {
          std::println(" INTERRUPTED (signal {})", signal);
          acceptor.cancel();
@@ -48,7 +60,7 @@ awaitable<void> server(tcp::endpoint endpoint)
 int main()
 {
    io_context io_context;
-   co_spawn(io_context, server({tcp::v6(), 55555}), log_exception_ptr("server"));
+   co_spawn(io_context, server({tcp::v6(), 55555}), log_exception("server"));
    std::println("running IO context...");
    io_context.run();
    std::println("running IO context... done");

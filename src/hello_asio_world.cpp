@@ -2,6 +2,7 @@
 
 namespace asio = boost::asio;
 using asio::ip::tcp;
+using boost::system::error_code;
 
 class session : public std::enable_shared_from_this<session>
 {
@@ -14,7 +15,7 @@ private:
    {
       auto self(shared_from_this());
       socket_.async_read_some(asio::buffer(data_),
-                              [this, self](boost::system::error_code ec, std::size_t length)
+                              [this, self](error_code ec, std::size_t length)
                               {
                                  if (!ec)
                                     do_write(length);
@@ -25,7 +26,7 @@ private:
    {
       auto self(shared_from_this());
       async_write(socket_, asio::buffer(data_, length),
-                  [this, self](boost::system::error_code ec, std::size_t /*length*/)
+                  [this, self](error_code ec, std::size_t /*length*/)
                   {
                      if (!ec)
                         do_read();
@@ -49,7 +50,7 @@ private:
    void do_accept()
    {
       acceptor_.async_accept(socket_,
-                             [this](boost::system::error_code ec)
+                             [this](error_code ec)
                              {
                                 if (!ec)
                                    std::make_shared<session>(std::move(socket_))->start();
