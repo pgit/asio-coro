@@ -141,8 +141,8 @@ TEST_F(ComposedAny, WHEN_async_op_finishes_THEN_sets_future)
  */
 class ComposedIndirect : public testing::Test
 {
-public:
-   static auto async_sleep_impl(SleepHandler token, Duration duration)
+private:
+   auto async_sleep_impl(SleepHandler token, Duration duration)
    {
       return asio::async_initiate<SleepHandler, Sleep>(
          [](auto handler, Duration duration)
@@ -154,11 +154,12 @@ public:
          token, duration);
    }
 
+public:
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   static auto async_sleep(Duration duration, CompletionToken&& token)
+   auto async_sleep(Duration duration, CompletionToken&& token)
    {
       return boost::asio::async_initiate<CompletionToken, Sleep>(
-         [](boost::asio::completion_handler_for<Sleep> auto&& handler, Duration duration)
+         [this](boost::asio::completion_handler_for<Sleep> auto&& handler, Duration duration)
          {
             async_sleep_impl(std::move(handler), duration); //
          },
@@ -182,8 +183,8 @@ TEST_F(ComposedIndirect, AnyDetached)
  */
 class ComposedIndirectExplicit : public testing::Test
 {
-public:
-   static auto async_sleep_impl(SleepHandler token, boost::asio::any_io_executor ex,
+private:
+   auto async_sleep_impl(SleepHandler token, boost::asio::any_io_executor ex,
                                 Duration duration)
    {
       return asio::async_initiate<SleepHandler, Sleep>(
@@ -195,12 +196,13 @@ public:
          token, std::move(ex), duration);
    }
 
+public:
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   static auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
+   auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
                            CompletionToken&& token)
    {
       return boost::asio::async_initiate<CompletionToken, Sleep>(
-         [](SleepHandler handler, boost::asio::any_io_executor ex, Duration duration)
+         [this](SleepHandler handler, boost::asio::any_io_executor ex, Duration duration)
          {
             async_sleep_impl(std::move(handler), std::move(ex), duration); //
          },
@@ -291,11 +293,11 @@ TEST_F(ComposedAsyncInitiate, DropHandler)
 {
    boost::asio::io_context context;
 
-   class Blah
+   class Class
    {
    public:
-      Blah() { std::println("constructor"); }
-      ~Blah() { std::println("destructor"); }
+      Class() { std::println("constructor"); }
+      ~Class() { std::println("destructor"); }
    };
 
    co_spawn(
@@ -303,9 +305,9 @@ TEST_F(ComposedAsyncInitiate, DropHandler)
       [&]() -> asio::awaitable<void>
       {
          co_await async_sleep(100ms, asio::deferred);
-         Blah blah1;
+         Class object1;
          co_await drop_handler(asio::deferred);
-         Blah blah2;
+         Class object2;
       },
       [](const std::exception_ptr& ex)
       {
@@ -604,7 +606,7 @@ TEST(Threads, Strand)
          context,
          [&]() -> awaitable<void>
          {
-            // co_await post(context, bind_executor(strand, use_awaitable));
+            co_await post(context, bind_executor(strand, use_awaitable));
             if (++counter == 1000)
                work.reset();
             co_return;

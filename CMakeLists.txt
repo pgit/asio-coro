@@ -4,6 +4,12 @@ project(asio-coro VERSION 0.0.1)
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 set(CMAKE_CXX_STANDARD 23)
 
+# FIXME: try io_uring
+# add_compile_definitions(BOOST_ASIO_HAS_FILE)
+# add_compile_definitions(BOOST_ASIO_HAS_IO_URING_AS_DEFAULT)
+# add_compile_definitions(BOOST_ASIO_DISABLE_EPOLL)
+# add_compile_definitions(BOOST_ASIO_HAS_IO_URING_AS_DEFAULT)
+
 if (CMAKE_BUILD_TYPE MATCHES Debug)
     # add_compile_definitions(BOOST_ASIO_ENABLE_BUFFER_DEBUGGING)
 
