@@ -1,23 +1,15 @@
 #include "asio-coro.hpp"
 #include "utils.hpp"
 
-#include <boost/asio/experimental/awaitable_operators.hpp>
-
-#include <boost/process.hpp>
-#include <boost/process/v1/args.hpp>
-#include <boost/process/v1/async.hpp>
-#include <boost/process/v1/async_pipe.hpp>
-#include <boost/process/v1/child.hpp>
-#include <boost/process/v1/environment.hpp>
-#include <boost/process/v1/io.hpp>
-
-#include <ranges>
+#include <boost/process/v2/process.hpp>
+#include <boost/process/v2/stdio.hpp>
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <print>
 
-namespace bp = boost::process::v1;
+namespace bp = boost::process::v2;
 using namespace experimental::awaitable_operators;
 
 // =================================================================================================
@@ -25,12 +17,12 @@ using namespace experimental::awaitable_operators;
 class Process : public testing::Test
 {
 protected:
-   awaitable<void> log(std::string_view prefix, bp::async_pipe pipe)
+   awaitable<void> log1(std::string_view prefix, readable_pipe pipe)
    {
       std::string buffer;
       for (;;)
       {
-         auto [ex, n] =
+         auto [ec, n] =
             co_await async_read_until(pipe, dynamic_buffer(buffer), '\n', as_tuple(deferred));
 
          if (n)
@@ -40,7 +32,7 @@ protected:
             buffer.erase(0, n);
          }
 
-         if (ex)
+         if (ec)
             break;
       }
 
@@ -48,67 +40,63 @@ protected:
          std::println("{}: \x1b[32m{}\x1b[0m", prefix, buffer);
    }
 
-   awaitable<std::string> consume(bp::async_pipe pipe)
+   awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
-      std::string result;
-      std::vector<char> data(1460);
-      for (;;)
+      std::string buffer;
+      try
       {
-         auto [ex, nread] = co_await async_read(pipe, buffer(data), as_tuple(deferred));
-         result += std::string_view(data.data(), nread);
-         if (nread)
-            std::println("STDOUT: {} bytes", nread);
-         if (ex)
-            break;
-      }
-      co_return result;
-   }
-
-   template <std::ranges::input_range R>
-      requires std::formattable<std::ranges::range_value_t<R>, char>
-   std::string join(R&& range, std::string_view delimiter)
-   {
-      std::string result;
-      auto it = std::ranges::begin(range);
-      const auto end = std::ranges::end(range);
-
-      if (it != end)
-      {
-         result += std::format("{}", *it++);
-         while (it != end)
+         for (;;)
          {
-            result += delimiter;
-            result += std::format("{}", *it++);
+            auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n', deferred);
+            assert(n > 0);
+
+            auto line = std::string_view(buffer).substr(0, n - 1);
+            std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
+            buffer.erase(0, n);
+         }
+      }
+      catch (const system_error& ec)
+      {
+         if (ec.code() != error::eof)
+         {
+            std::println("exception: {}", ec.code().message());
+            throw;
          }
       }
 
-      return result;
+      if (!buffer.empty())
+         std::println("{}: \x1b[32m{}\x1b[0m", prefix, buffer);
    }
 
-   awaitable<void> spawn_process(bp::filesystem::path path, std::vector<std::string> args)
+   awaitable<void> spawn_process(std::filesystem::path path, std::vector<std::string> args,
+                                 Duration timeout)
    {
       std::println("spawn: {} {}", path.generic_string(), join(args, " "));
 
-      auto env = bp::environment();
-      bp::async_pipe out(context), err(context);
-      bp::child child(
-         path, env, std::move(args), bp::std_out > out, bp::std_err > err,
-         bp::on_exit = [](int exit, const std::error_code& ec) { //
-            std::println("on_exit: exit={}, ec={}", exit, ec.message());
-         });
+      readable_pipe out(context), err(context);
+      bp::process child(context, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
+
+      use_awaitable_t<>::as_default_on_t<steady_timer> timer(context);
+      timer.expires_after(timeout);
 
       std::println("spawn: communicating...");
-      co_await (log("STDERR", std::move(err)) && log("STDOUT", std::move(out)));
+      co_await (log("STDERR", err) && log("STDOUT", out) || timer.async_wait());
       std::println("spawn: communicating... done");
 
+      child.interrupt();
+
+      timer.expires_after(1s);
+      co_await (log("STDERR", err) && log("STDOUT", out) || timer.async_wait());
+
       std::println("spawn: waiting for process...");
-      child.wait(); // FIXME: this is sync -- but will it ever block here, after pipes are closed?
-      std::println("spawn: waiting for process... done, exit_code={}", child.exit_code());
+      co_await child.async_wait(deferred);
+      std::println("spawn: waiting for process... done, exit code {}", child.exit_code());
    }
 
-   void spawn(bp::filesystem::path path, std::vector<std::string> args)
+   void spawn(std::filesystem::path path, std::vector<std::string> args, Duration timeout = 5s)
    {
-      co_spawn(context, spawn_process(std::move(path), std::move(args)), detached);
+      co_spawn(context, spawn_process(std::move(path), std::move(args), timeout),
+               log_exception("spawn"));
    }
 
    io_context context;
@@ -117,13 +105,21 @@ protected:
 
 // -------------------------------------------------------------------------------------------------
 
-using Args = std::vector<std::string>;
-
 TEST_F(Process, Ping)
 {
-   Args args = {"127.0.0.1", "-c", "5", "-i", "0.1"};
-   spawn("/usr/bin/ping", std::move(args));
+   spawn("/usr/bin/ping", {"127.0.0.1", "-c", "5", "-i", "0.1"});
+   ::run(context);
+}
 
+TEST_F(Process, Cancel)
+{
+   spawn("/usr/bin/ping", {"127.0.0.1", "-i", "0.1"}, 250ms);
+   ::run(context);
+}
+
+TEST_F(Process, EchoNoNewline)
+{
+   spawn("/usr/bin/echo", {"-n", "There is no newline at the end of this"});
    ::run(context);
 }
 

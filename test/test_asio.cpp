@@ -184,8 +184,7 @@ TEST_F(ComposedIndirect, AnyDetached)
 class ComposedIndirectExplicit : public testing::Test
 {
 private:
-   auto async_sleep_impl(SleepHandler token, boost::asio::any_io_executor ex,
-                                Duration duration)
+   auto async_sleep_impl(SleepHandler token, boost::asio::any_io_executor ex, Duration duration)
    {
       return asio::async_initiate<SleepHandler, Sleep>(
          [](auto handler, boost::asio::any_io_executor ex, Duration duration)
@@ -198,8 +197,7 @@ private:
 
 public:
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
-                           CompletionToken&& token)
+   auto async_sleep(boost::asio::any_io_executor ex, Duration duration, CompletionToken&& token)
    {
       return boost::asio::async_initiate<CompletionToken, Sleep>(
          [this](SleepHandler handler, boost::asio::any_io_executor ex, Duration duration)
@@ -352,7 +350,21 @@ TEST_F(ComposedAsyncInitiate, DropHandlerFuture)
 //         async_initiate<>, the only difference is that we get the executor from the state object
 //         instead of calling get_associated_executor().
 //
-// FIXME: What about allocators etc?
+// BUT: Even though work is now properly registerd to the executor and the testcase works, we have
+//      introduced a race condition that becomes visible when running the test with TSAN: When we
+//      create a timer on the executor returned by state.get_io_context(), it will run on the
+//      system executor! Doing this will lazily create a new thread and introduce the TSAN issues.
+//
+// We can work around this by creating the timer on the executor of the handler, as returned by
+//
+//    get_associated_executor(state.handler())
+//
+// This is a bit awkward, but, in the end, logical. The reason behind this is that this is an async
+// operation that does not have an IO object -- but it does use IO (well, at least a timer)
+// internally. This makes it difficult to reason about where the timer is scheduled.
+//
+// In practice, a free-standing asynchronous operation that internally does IO should have an
+// explicit executor parameter.
 //
 class ComposedCoro : public testing::Test
 {
@@ -366,7 +378,17 @@ public:
          asio::co_composed<Sleep>(
             [this](auto state, Duration duration) -> void
             {
-               auto ex = state.get_io_executor();
+               // auto ex = state.get_io_executor();
+               // auto ex = co_await this_coro::executor;
+               // auto ex = context.get_executor();
+
+               //
+               // Only by using the associated executor from the handler we can avoid starting
+               // the timer in the system executor. And we have to construct the timer with that
+               // executor. If we do this, we don't need bind_executor() any more.
+               //
+               auto ex = get_associated_executor(state.handler());
+
                auto thread_id = std::this_thread::get_id();
                std::println("waiting in thread {}...", thread_id);
                co_await asio::steady_timer(ex, duration).async_wait(asio::deferred);
@@ -382,7 +404,7 @@ public:
    }
 
    // std::atomic<size_t> done = 0;
-   size_t done = 0;
+   std::size_t done = 0;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -407,10 +429,12 @@ TEST_F(ComposedCoro, DISABLED_Unbound)
 // This test is only (somewhat) safe because there is a longer sleep in the test that follows.
 // If you run it under very high load, it may still fail, very seldomly.
 //
-TEST_F(ComposedCoro, DefaultExecutor)
+// TSAN also reports this, and fails because of TSAN_OPTIONS "halt_on_error=1", so it disabled.
+//
+TEST_F(ComposedCoro, DISABLED_DefaultExecutor)
 {
    boost::asio::io_context context;
-   async_sleep(100ms, asio::detached); // this not safe, does not register work properly
+   async_sleep(100ms, asio::detached); // this not safe, does not register work with 'context'
    async_sleep(120ms, bind_executor(context, asio::detached));
    ::run(context);
    EXPECT_EQ(done, 2);
@@ -446,40 +470,30 @@ TEST_F(ComposedCoro, AnyFuture)
 
 //
 // Another way to pass the executor to the composed function is to pass the executor as an argument.
-// But given that binding the executor works as intended (see ComposedCoro.*) I don't see why we
-// would want to it like this.
+// This is the proper way to implement a free-standing asynchronous operation, see discussion above.
 //
 class ComposedExecutor : public testing::Test
 {
 public:
-   static auto async_sleep_impl(SleepHandler token, boost::asio::any_io_executor ex,
-                                Duration duration)
+   template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
+   auto async_sleep(boost::asio::any_io_executor ex, Duration duration, CompletionToken&& token)
    {
-      return asio::async_initiate<SleepHandler, Sleep>( //
+      return asio::async_initiate<CompletionToken, Sleep>(
          asio::co_composed<Sleep>(
-            [](auto state, boost::asio::any_io_executor ex, Duration duration) -> void
+            [this](auto state, boost::asio::any_io_executor ex, Duration duration) -> void
             {
                asio::steady_timer timer(ex, duration);
                timer.expires_after(100ms);
                std::println("waiting (with ex)...");
                auto [ec] = co_await timer.async_wait(asio::as_tuple(asio::deferred));
                std::println("waiting (with ex)... done, {}", ec.what());
+               ++done;
                co_return {boost::system::error_code{}};
             }),
          token, ex, duration);
    }
 
-   template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   static auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
-                           CompletionToken&& token)
-   {
-      return boost::asio::async_initiate<CompletionToken, Sleep>(
-         [](SleepHandler handler, boost::asio::any_io_executor ex, Duration duration)
-         {
-            async_sleep_impl(std::move(handler), ex, duration); //
-         },
-         token, std::move(ex), duration);
-   }
+   size_t done = 0;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -488,14 +502,20 @@ TEST_F(ComposedExecutor, AnyDetached)
 {
    boost::asio::io_context context;
    async_sleep(context.get_executor(), 100ms, asio::detached);
+   async_sleep(context.get_executor(), 100ms, asio::detached);
    ::run(context);
+   EXPECT_EQ(done, 2);
 }
+
 TEST_F(ComposedExecutor, AnyFuture)
 {
    boost::asio::io_context context;
-   auto future = async_sleep(context.get_executor(), 100ms, asio::use_future);
+   auto f1 = async_sleep(context.get_executor(), 100ms, asio::use_future);
+   auto f2 = async_sleep(context.get_executor(), 100ms, asio::use_future);
    ::run(context);
-   EXPECT_NO_THROW(future.get());
+   EXPECT_NO_THROW(f1.get());
+   EXPECT_NO_THROW(f2.get());
+   EXPECT_EQ(done, 2);
 }
 
 // =================================================================================================

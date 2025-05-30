@@ -6,7 +6,10 @@
             "before": [
                "CMake Build"
             ]
-         }
+         },
+         "env": {"TSAN_OPTIONS": "halt_on_error=1"}
       }
-   ]
+   ],
+   "testMate.cpp.test.parallelExecutionLimit": 8,
+   "testMate.cpp.test.parallelExecutionOfExecutableLimit": 8
 }

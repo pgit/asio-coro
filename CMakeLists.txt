@@ -39,7 +39,7 @@ add_compile_options(-Wno-deprecated-declarations)
 # find boost
 # https://github.com/madmongo1/blog-december-2020/blob/master/CMakeLists.txt
 #
-find_package(Boost 1.78 COMPONENTS system thread filesystem program_options REQUIRED)
+find_package(Boost 1.78 COMPONENTS system thread filesystem process program_options REQUIRED)
 find_package(OpenSSL COMPONENTS)
 find_package(Threads)
 

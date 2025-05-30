@@ -17,3 +17,6 @@ To test echo speed, you can use `netcat` like this:
 cmake --build build --target all -- && build/async_tcp_echo_server 8080&
 dd if=/dev/zero bs=1K count=1M|nc -N localhost 8080|dd of=/dev/null
 ```
+
+# Testcases
+A few examples are implement as Google Test units `test/test_*.cpp`. This way, we can easily run and debug them in Visual Studio Code, using [C++ TestMate](https://marketplace.visualstudio.com/items?itemName=matepek.vscode-catch2-test-adapter).
