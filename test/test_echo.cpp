@@ -77,6 +77,13 @@ public:
          std::rethrow_exception(ep);
    }
 
+   static awaitable<void> sleep(std::chrono::milliseconds duration)
+   {
+      steady_timer timer(co_await this_coro::executor);
+      timer.expires_after(100ms);
+      co_await timer.async_wait();
+   }
+
    void run()
    {
       ASSERT_TRUE(!!test);
@@ -85,7 +92,7 @@ public:
       ::run(context);
       auto t1 = steady_clock::now();
       this->runtime = floor<Duration>(t1 - t0);
-      clientFuture.get(); // may throw
+      clientFuture.get(); // may throw, to be catched by EXPECT_THROW(...)
    }
 
    template <TestConcept Test>
@@ -150,6 +157,38 @@ TEST_F(Echo, WHEN_send_hello_THEN_receive_echo)
       EXPECT_EQ(ec, asio::error::eof);
       EXPECT_EQ(n, hello.length());
       EXPECT_EQ(std::string_view(data.data(), n), hello);
+   };
+   EXPECT_NO_THROW(run());
+}
+
+TEST_F(Echo, WHEN_send_hello_in_chunks_THEN_receive_echo)
+{
+   test = [](tcp::socket socket) -> awaitable<void>
+   {
+      auto executor = co_await this_coro::executor;
+
+      const auto hello = "Hello, World!"sv;
+      awaitable<void> sender = co_spawn(
+         executor,
+         [&]() -> awaitable<void>
+         {
+            co_await socket.async_send(buffer(hello.substr(0, 5)));
+            co_await sleep(10ms);
+            co_await socket.async_send(buffer(hello.substr(5)));
+            socket.shutdown(socket_base::shutdown_send);
+         },
+         use_awaitable);
+
+      auto receiver = [&]() -> awaitable<void>
+      {
+         std::array<char, 1024> data;
+         auto [ec, n] = co_await async_read(socket, buffer(data), as_tuple);
+         EXPECT_EQ(ec, asio::error::eof);
+         EXPECT_EQ(n, hello.length());
+         EXPECT_EQ(std::string_view(data.data(), n), hello);
+      };
+
+      co_await (std::move(sender) && std::move(receiver)());
    };
    EXPECT_NO_THROW(run());
 }

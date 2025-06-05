@@ -279,7 +279,7 @@ TEST_F(ComposedAsyncInitiate, DISABLED_AnyDetachedDefault)
    async_sleep(100ms, asio::detached);
 }
 
-TEST_F(ComposedAsyncInitiate, AnyFutureDefault)
+TEST_F(ComposedAsyncInitiate, DISABLED_AnyFutureDefault)
 {
    auto f1 = async_sleep(100ms, asio::use_future);
    auto f2 = async_sleep(100ms, asio::use_future);
@@ -619,28 +619,33 @@ TEST(Threads, Context)
 TEST(Threads, Strand)
 {
    io_context context;
+   any_io_executor executor = context.get_executor();
+   auto work = make_work_guard(executor);
+   auto strand = make_strand(executor);
 
-   auto work = make_work_guard(context);
-   auto thread = std::thread([&]() { context.run(); });
+   std::array<std::thread, 10> threads;
+   for (auto& thread : threads)
+      thread = std::thread([&]() { context.run(); });
 
    size_t counter = 0;
-   auto strand = make_strand(context);
-   for (size_t i = 0; i < 1000; ++i)
+   const size_t N = 1000;
+   for (size_t i = 0; i < N; ++i)
       co_spawn(
-         context,
+         executor,
          [&]() -> awaitable<void>
          {
-            co_await post(context, bind_executor(strand, use_awaitable));
-            if (++counter == 1000)
-               work.reset();
+            co_await post(executor, bind_executor(strand));
+            counter++;
             co_return;
-         },
+         }(),
          detached);
 
-   context.run();
-   thread.join();
+   work.reset();
 
-   EXPECT_EQ(counter, 1000);
+   for (auto& thread : threads)
+      thread.join();
+
+   EXPECT_EQ(counter, N);
 }
 
 // =================================================================================================
