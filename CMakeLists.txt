@@ -16,9 +16,9 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
     # ASIO handler tracking output (very noisy)
     # add_compile_definitions(BOOST_ASIO_ENABLE_HANDLER_TRACKING)
     
-    # thread sanitizer
-    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
-    add_link_options(-fsanitize=thread)
+    # thread sanitizer (doesn't work on codespaces)
+    # add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    # add_link_options(-fsanitize=thread)
     
     # address sanitizer
     # add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
