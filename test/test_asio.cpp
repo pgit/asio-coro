@@ -440,6 +440,10 @@ TEST_F(ComposedCoro, DISABLED_DefaultExecutor)
    EXPECT_EQ(done, 2);
 }
 
+//
+// Only when binding both tasks to the executor, even with a 'detached' completion token, this
+// is safe.
+//
 TEST_F(ComposedCoro, AnyDetached)
 {
    boost::asio::io_context context;

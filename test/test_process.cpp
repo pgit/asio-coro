@@ -10,36 +10,12 @@
 #include <print>
 
 namespace bp = boost::process::v2;
-using namespace experimental::awaitable_operators;
 
 // =================================================================================================
 
 class Process : public testing::Test
 {
 protected:
-   awaitable<void> log1(std::string_view prefix, readable_pipe pipe)
-   {
-      std::string buffer;
-      for (;;)
-      {
-         auto [ec, n] =
-            co_await async_read_until(pipe, dynamic_buffer(buffer), '\n', as_tuple(deferred));
-
-         if (n)
-         {
-            auto line = std::string_view(buffer).substr(0, n - 1);
-            std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
-            buffer.erase(0, n);
-         }
-
-         if (ec)
-            break;
-      }
-
-      if (!buffer.empty())
-         std::println("{}: \x1b[32m{}\x1b[0m", prefix, buffer);
-   }
-
    awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
       std::string buffer;
@@ -47,7 +23,7 @@ protected:
       {
          for (;;)
          {
-            auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n', deferred);
+            auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
             assert(n > 0);
 
             auto line = std::string_view(buffer).substr(0, n - 1);
@@ -59,7 +35,7 @@ protected:
       {
          if (ec.code() != error::eof)
          {
-            std::println("exception: {}", ec.code().message());
+            std::println("log: {}", ec.code().message());
             throw;
          }
       }

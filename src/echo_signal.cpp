@@ -1,9 +1,10 @@
 #include <boost/asio/error.hpp>
 #include "asio-coro.hpp"
 
-awaitable<void> echo(tcp::socket socket)
+awaitable<void> session(tcp::socket socket)
 {
    std::println("new connection from {}", socket.remote_endpoint());
+
    size_t total = 0;
    try
    {
@@ -21,19 +22,7 @@ awaitable<void> echo(tcp::socket socket)
          throw;
    }
 
-   std::println("echoed {} bytes total", total);
-}
-
-using ReadSome = void(error_code, size_t);
-
-template <BOOST_ASIO_COMPLETION_TOKEN_FOR(ReadSome) CompletionToken>
-auto async_read_some(mutable_buffer buffer, CompletionToken&& token)
-{
-   return async_initiate<CompletionToken, ReadSome>(
-      [&](completion_handler_for<ReadSome>auto&& handler, mutable_buffer buffer) { //
-         std::move(handler)(error_code{}, 0 /* bytes_written */);
-      },
-      token, buffer);
+   std::println("echoed {} total", Bytes(total));
 }
 
 awaitable<void> server(tcp::endpoint endpoint)
@@ -53,7 +42,7 @@ awaitable<void> server(tcp::endpoint endpoint)
    for (;;)
    {
       tcp::socket socket = co_await acceptor.async_accept(use_awaitable);
-      co_spawn(executor, echo(std::move(socket)), detached);
+      co_spawn(executor, session(std::move(socket)), detached);
    }
 }
 

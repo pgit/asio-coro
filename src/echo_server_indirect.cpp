@@ -8,7 +8,7 @@ awaitable<size_t> echo_once(tcp::socket& socket)
    co_return n;
 }
 
-awaitable<void> echo(tcp::socket socket)
+awaitable<void> session(tcp::socket socket)
 {
    std::println("new connection from {}", socket.remote_endpoint());
    size_t total = 0;
@@ -39,7 +39,7 @@ awaitable<void> server(tcp::endpoint ep)
    for (;;)
    {
       tcp::socket socket = co_await acceptor.async_accept(use_awaitable);
-      co_spawn(executor, echo(std::move(socket)), detached);
+      co_spawn(executor, session(std::move(socket)), detached);
    }
 }
 

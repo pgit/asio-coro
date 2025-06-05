@@ -23,10 +23,6 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
     # address sanitizer
     # add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     # add_link_options(-fsanitize=address)
-
-    # include(CodeCoverage)
-    # append_coverage_compiler_flags()
-    # SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
 endif()
 add_compile_options(-stdlib=libc++)
 add_link_options(-stdlib=libc++ -lstdc++fs)
@@ -52,4 +48,5 @@ link_libraries(Boost::system Boost::thread Boost::atomic)
 # --------------------------------------------------------------------------------------------------
 
 add_subdirectory(src)
+add_subdirectory(slides)
 add_subdirectory(test)

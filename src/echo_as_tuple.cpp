@@ -1,7 +1,7 @@
 #include <boost/asio/error.hpp>
 #include "asio-coro.hpp"
 
-awaitable<void> echo(tcp::socket socket)
+awaitable<size_t> session(tcp::socket socket)
 {
    std::println("new connection from {}", socket.remote_endpoint());
    
@@ -9,17 +9,18 @@ awaitable<void> echo(tcp::socket socket)
    std::array<char, 1024> data;
    for (;;)
    {
-      auto [ec, n] = co_await socket.async_read_some(asio::buffer(data), as_tuple(use_awaitable));
-      if (ec)
+      auto [ec, n] = co_await socket.async_read_some(asio::buffer(data), as_tuple);
+      if (ec == asio::error::eof)
          break;
+      else if (ec)
+         throw system_error(ec);
 
       total += n;
-      co_await async_write(socket, asio::buffer(data, n), as_tuple(use_awaitable));
-      if (ec)
-         break;
+      co_await async_write(socket, asio::buffer(data, n), as_tuple);
    }
 
    std::println("echoed {} bytes total", total);
+   co_return total;
 }
 
 awaitable<void> server(tcp::endpoint endpoint)
@@ -30,8 +31,8 @@ awaitable<void> server(tcp::endpoint endpoint)
    std::println("listening on {}", acceptor.local_endpoint());
    for (;;)
    {
-      tcp::socket socket = co_await acceptor.async_accept(use_awaitable);
-      co_spawn(executor, echo(std::move(socket)), detached);
+      tcp::socket socket = co_await acceptor.async_accept();
+      co_spawn(executor, session(std::move(socket)), detached);
    }
 }
 
