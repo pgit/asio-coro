@@ -2,7 +2,7 @@
 # https://github.com/microsoft/vscode-dev-containers/tree/main/containers/debian
 # https://github.com/pgit/cpp-devcontainer
 #
-FROM docker.io/psedoc/cpp-devcontainer:0.14
+FROM docker.io/psedoc/cpp-devcontainer:0.15
 
 #
 # GDB libc++ pretty printer (works for string, but not for map with llvm-17)
@@ -45,5 +45,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
     && touch /commandhistory/.bash_history \
     && chown -R $USERNAME /commandhistory \
     && echo "$SNIPPET" >> "/home/$USERNAME/.bashrc"
+
+RUN echo "export LESS=RS" >> "/home/$USERNAME/.bashrc"
+RUN echo "alias l='ls -la'" >> "/home/$USERNAME/.bashrc"
 
 SHELL ["/bin/bash", "-c"]
