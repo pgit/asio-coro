@@ -2,20 +2,28 @@
 This is a collection of samples for using C++20 coroutines with ASIO.
 
 # Development Devcontainer
-This project is prepared to run in a Visual Studio Code Development Container.
+This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in a [GitHub Codespace](https://github.com/features/codespaces).
 
-On first startup, the CMake Plugin will ask you for a kit, select "clang".
+After opening, press `F7` to compile using CMake. On first startup, the CMake Plugin will ask you for a kit, select `[Unspecified]` or `clang` (the latter may take some time to appear, when scanning has finished).
 
-You may have to run "clangd: Restart language server" once for it to pick up on `build/compile_commands.json`.
+After that, you can open a `*.cpp` file. This workspace is configured to use the [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd) plugin for syntax highlighting and indexing. That may take a while to complete, watch the `indexìng 1/20` in the status bar. You may have to run the command `clangd: Restart language server` once for it to pick up on changes to `build/compile_commands.json`.
 
 # Echo Servers
-There are several implementations of TCP echo servers in this project, for speed comparison.
+There are several implementations of TCP echo servers in this project, for demonstraction purposes.
+
+```bash
+cmake --build build --target all -- && build/slides/echo_coro
+```
+
+To test, use `socat`:
+```bash
+socat STDIN TCP-CONNECT:[::1]:55555
+```
 
 To test echo speed, you can use `netcat` like this:
 
 ```bash
-cmake --build build --target all -- && build/async_tcp_echo_server 8080&
-dd if=/dev/zero bs=1K count=1M|nc -N localhost 8080|dd of=/dev/null
+dd if=/dev/zero bs=1K count=1M|nc -N localhost 55555|dd of=/dev/null
 ```
 
 # Testcases
