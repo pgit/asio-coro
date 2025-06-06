@@ -4,3 +4,4 @@ compile_commands.json
 *.pcap
 report.xml
 .bash_history
+callgrind.out.*
