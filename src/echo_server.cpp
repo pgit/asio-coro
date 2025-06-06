@@ -8,7 +8,7 @@ awaitable<void> session(tcp::socket socket)
    size_t total = 0;
    try
    {
-      std::array<char, 1024> data;
+      std::array<char, 1460> data;
       for (;;)
       {
          std::size_t n = co_await socket.async_read_some(asio::buffer(data), use_awaitable);

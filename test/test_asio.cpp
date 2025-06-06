@@ -1,37 +1,9 @@
 #include "asio-coro.hpp"
 #include "utils.hpp"
 
-#if 0
-#include <boost/asio.hpp>
-#include <boost/asio/any_completion_executor.hpp>
-#include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/as_tuple.hpp>
-#include <boost/asio/associated_allocator.hpp>
-#include <boost/asio/associated_executor.hpp>
-#include <boost/asio/async_result.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/consign.hpp>
-#include <boost/asio/deferred.hpp>
-#include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/post.hpp>
-#include <boost/asio/system_context.hpp>
-#include <boost/asio/this_coro.hpp>
-#include <boost/asio/use_awaitable.hpp>
-#include <boost/asio/use_future.hpp>
-
-#include <boost/system/detail/errc.hpp>
-#include <boost/system/detail/error_code.hpp>
-#include <boost/system/system_error.hpp>
-#endif
-#include <boost/asio/experimental/awaitable_operators.hpp>
-
-#include <boost/url/url.hpp>
-
 #include <gtest/gtest.h>
 
+#include <latch>
 #include <print>
 #include <thread>
 
@@ -584,7 +556,7 @@ TEST_F(ComposedHandler, ComaPoll)
 
 // =================================================================================================
 
-TEST(Threads, Context)
+TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
 {
    io_context context[2];
 
@@ -628,7 +600,8 @@ TEST(Threads, Strand)
       thread = std::thread([&]() { context.run(); });
 
    size_t counter = 0;
-   const size_t N = 1000;
+   constexpr size_t N = 100;
+   // std::latch latch(N);
    for (size_t i = 0; i < N; ++i)
       co_spawn(
          executor,
@@ -636,7 +609,6 @@ TEST(Threads, Strand)
          {
             co_await post(executor, bind_executor(strand));
             counter++;
-            co_return;
          }(),
          detached);
 

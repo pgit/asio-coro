@@ -7,7 +7,7 @@ using ip::tcp;
 awaitable<void> session(tcp::socket socket)
 {
    size_t total;
-   std::array<char, 1024> data;
+   std::array<char, 1460> data;
    for (;;)
    {
       auto [ec, n] = co_await socket.async_read_some(buffer(data), as_tuple);
@@ -17,7 +17,9 @@ awaitable<void> session(tcp::socket socket)
       }
       total += n;
 
-      co_await async_write(socket, buffer(data, n));
+      std::tie(ec, n) = co_await async_write(socket, buffer(data, n), as_tuple);
+      if (ec)
+         break;
    }
 }
 

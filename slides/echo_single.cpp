@@ -5,7 +5,7 @@ using ip::tcp;
 
 void session(tcp::socket s)
 {
-   std::array<char, 1024> data;
+   std::array<char, 1460> data;
    for (;;)
    {
       boost::system::error_code ec;

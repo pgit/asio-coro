@@ -2,14 +2,20 @@
 
 using namespace boost::asio;
 using ip::tcp;
+using namespace std::chrono_literals;
 
 awaitable<void> session(tcp::socket socket)
 {
    std::array<char, 1460> data;
    for (;;)
    {
-      size_t n = co_await socket.async_read_some(buffer(data));
-      co_await async_write(socket, buffer(data, n));
+      auto [ec, n] = co_await socket.async_read_some(buffer(data), as_tuple);
+      if (ec)
+         break;
+
+      std::tie(ec, n) = co_await async_write(socket, buffer(data, n), as_tuple);
+      if (ec)
+         break;
    }
 }
 

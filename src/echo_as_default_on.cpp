@@ -7,7 +7,7 @@ awaitable<void> echo(Socket socket)
    std::println("new connection from {}", socket.remote_endpoint());
    
    size_t total = 0;
-   std::array<char, 1024> data;
+   std::array<char, 1460> data;
    for (;;)
    {
       auto [ec, n] = co_await socket.async_read_some(asio::buffer(data));

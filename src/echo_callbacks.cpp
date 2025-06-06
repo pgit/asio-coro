@@ -6,7 +6,7 @@ using ip::tcp;
 
 awaitable<size_t> echo_once(tcp::socket& socket)
 {
-   std::array<char, 1024> buffer;
+   std::array<char, 1460> buffer;
    std::size_t n = co_await socket.async_read_some(boost::asio::buffer(buffer), deferred);
    co_await async_write(socket, boost::asio::buffer(buffer, n), deferred);
    co_return n;
@@ -27,7 +27,7 @@ awaitable<void> session(tcp::socket socket)
          // coroutine, and the behaviour is functionally equivalent.
          total += co_await echo_once(socket);
 #else
-         std::array<char, 1024> buffer;
+         std::array<char, 1460> buffer;
          std::size_t n = co_await socket.async_read_some(boost::asio::buffer(buffer), deferred);
          co_await async_write(socket, boost::asio::buffer(buffer, n), deferred);
          total += n;

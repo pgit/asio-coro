@@ -34,7 +34,7 @@ private:
    }
 
    tcp::socket socket_;
-   std::array<uint8_t, 1024> data_;
+   std::array<uint8_t, 1460> data_;
 };
 
 class server

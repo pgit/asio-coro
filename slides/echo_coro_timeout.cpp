@@ -2,6 +2,7 @@
 
 using namespace boost::asio;
 using ip::tcp;
+using namespace std::chrono_literals;
 
 awaitable<void> session(tcp::socket socket)
 {
@@ -16,7 +17,7 @@ awaitable<void> session(tcp::socket socket)
 awaitable<void> server(tcp::acceptor a)
 {
    for (;;)
-      co_spawn(a.get_executor(), session(co_await a.async_accept()), detached);
+      co_spawn(a.get_executor(), session(co_await a.async_accept()), cancel_after(2s, detached));
 }
 
 int main()

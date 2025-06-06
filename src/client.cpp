@@ -9,7 +9,7 @@ awaitable<size_t> write(tcp::socket& socket, const std::size_t size)
    size_t total = 0;
    try
    {
-      std::array<char, 1024> data;
+      std::array<char, 1460> data;
       while (total < size)
       {
          size_t n = std::min(size - n, sizeof(data));
@@ -20,14 +20,12 @@ awaitable<size_t> write(tcp::socket& socket, const std::size_t size)
    catch (system_error& ex)
    {
       if (ex.code() == boost::system::errc::operation_canceled)
-         std::println("write: {} after writing {} bytes", ex.code().message(), Bytes(total));
+         ; // std::println("write: {} after writing {} bytes", ex.code().message(), Bytes(total));
       else
-      {
-         std::println("write: {}", ex.code().message());
-         throw;
-      }
+         ; // throw;
    }
-   socket.shutdown(boost::asio::socket_base::shutdown_send);
+   error_code ec;
+   ec = socket.shutdown(boost::asio::socket_base::shutdown_send, ec);
    co_return total;
 }
 
@@ -51,7 +49,7 @@ awaitable<size_t> read(tcp::socket& socket)
    size_t total = 0;
    try
    {
-      std::array<char, 1024> data;
+      std::array<char, 1460> data;
       for (;;)
       {
          total += co_await socket.async_read_some(buffer(data));
@@ -60,7 +58,7 @@ awaitable<size_t> read(tcp::socket& socket)
    catch (system_error& ex)
    {
       if (ex.code() == asio::error::eof || ex.code() == boost::system::errc::operation_canceled)
-         std::println("read: {} after reading {} bytes", ex.code().message(), Bytes(total));
+         ; // std::println("read: {} after reading {} bytes", ex.code().message(), Bytes(total));
       else
       {
          std::println("read: {}", ex.code().message());
@@ -75,7 +73,7 @@ awaitable<size_t> client(std::string host, uint16_t port, nanoseconds duration)
    auto executor = co_await this_coro::executor;
    tcp::resolver resolver(executor);
 
-   std::println("resolving {}:{} ...", host, port);
+   // std::println("resolving {}:{} ...", host, port);
    auto flags = ip::tcp::resolver::numeric_service;
    auto endpoints = co_await resolver.async_resolve(host, std::to_string(port), flags);
 
@@ -93,17 +91,47 @@ awaitable<size_t> client(std::string host, uint16_t port, nanoseconds duration)
    co_return nread;
 }
 
+struct Config
+{
+   size_t connections = 5;
+   size_t threads = 1;
+   std::chrono::milliseconds duration = 3s;
+};
+
 int main()
 {
-   io_context io_context;
-   std::array<std::future<size_t>, 5> futures;
-   for (auto& future : futures)
-      future = co_spawn(io_context, client("localhost", 55555, 5s), use_future);
+   Config config;
+   io_context context;
 
+   std::vector<std::future<size_t>> futures;
+   futures.reserve(config.connections);
+   for (size_t i = 0; i < futures.capacity(); ++i)
+   {
+      auto executor = config.threads > 1 ? any_io_executor(make_strand(context))
+                                         : any_io_executor(context.get_executor());
+      futures.emplace_back(
+         co_spawn(std::move(executor), client("localhost", 55555, config.duration), use_future));
+   }
+
+   //
+   // Finally, run the IO context until there is no pending operation left.
+   //
    auto t0 = steady_clock::now();
-   io_context.run();
+   if (config.threads == 1)
+      context.run();
+   else
+   {
+      std::vector<std::thread> threads(config.threads);
+      for (auto& thread : threads)
+         thread = std::thread([&]() { context.run(); });
+      for (auto& thread : threads)
+         thread.join();
+   }
    auto dt = floor<milliseconds>(steady_clock::now() - t0);
 
+   //
+   // Collect results.
+   //
    size_t total = 0;
    for (auto& future : futures)
    {

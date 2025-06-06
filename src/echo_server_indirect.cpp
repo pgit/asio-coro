@@ -2,7 +2,7 @@
 
 awaitable<size_t> echo_once(tcp::socket& socket)
 {
-   std::array<char, 1024> data;
+   std::array<char, 1460> data;
    std::size_t n = co_await socket.async_read_some(boost::asio::buffer(data), deferred);
    co_await async_write(socket, boost::asio::buffer(data, n), deferred);
    co_return n;
