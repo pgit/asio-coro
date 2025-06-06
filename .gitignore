@@ -5,3 +5,4 @@ compile_commands.json
 report.xml
 .bash_history
 callgrind.out.*
+gtest-parallel-logs
