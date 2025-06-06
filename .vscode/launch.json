@@ -5,7 +5,7 @@
             "name": "(gdb)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${fileBasenameNoExtension}",
+            "program": "${workspaceFolder}/build/${relativeFileDirname}/${fileBasenameNoExtension}",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -29,7 +29,7 @@
             "name":"(lldb)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${fileBasenameNoExtension}"
+            "program": "${workspaceFolder}/build/${relativeFileDirname}/${fileBasenameNoExtension}"
         }
     ]
 }
