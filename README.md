@@ -2,7 +2,7 @@
 This is a collection of samples for using C++20 coroutines with ASIO.
 
 # Development Devcontainer
-This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in a [GitHub Codespace](https://github.com/features/codespaces).
+This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in a [GitHub Codespace](https://github.com/features/codespaces). The image is based on [CPP Devcontainer](https://github.com/pgit/cpp-devcontainer).
 
 After opening, press `F7` to compile using CMake. On first startup, the CMake Plugin will ask you for a kit, select `[Unspecified]` or `clang` (the latter may take some time to appear, when scanning has finished).
 
