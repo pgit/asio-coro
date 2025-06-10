@@ -3,9 +3,13 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <boost/algorithm/string/join.hpp>
+
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
 using namespace asio; // in case we want to qualify explicitly
 using ip::tcp;
+
+using boost::algorithm::join;
 
 // =================================================================================================
 
@@ -69,28 +73,5 @@ struct std::formatter<Bytes>
       return std::format_to(ctx.out(), "{:.2f} {}", size, units[index]);
    }
 };
-
-// =================================================================================================
-
-template <std::ranges::input_range R>
-   requires std::formattable<std::ranges::range_value_t<R>, char>
-std::string join(R&& range, std::string_view delimiter)
-{
-   std::string result;
-   auto it = std::ranges::begin(range);
-   const auto end = std::ranges::end(range);
-
-   if (it != end)
-   {
-      result += std::format("{}", *it++);
-      while (it != end)
-      {
-         result += delimiter;
-         result += std::format("{}", *it++);
-      }
-   }
-
-   return result;
-}
 
 // =================================================================================================

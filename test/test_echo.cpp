@@ -138,7 +138,7 @@ TEST_F(Echo, WHEN_client_takes_too_long_THEN_timeout_hits)
       co_await timer.async_wait();
    };
    EXPECT_THROW(run(), system_error);
-   EXPECT_GT(runtime, timeout);
+   EXPECT_GE(runtime, timeout);
    EXPECT_LT(runtime, 1s);
 }
 

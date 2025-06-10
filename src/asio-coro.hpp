@@ -3,11 +3,13 @@
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
 
+#include <boost/scope/scope_exit.hpp>
+
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
-using namespace asio; // in case we want to qualify explicitly
+using ip::tcp;
+
 using boost::system::error_code;
 using boost::system::system_error;
-using ip::tcp;
 
 using namespace std::chrono_literals;
 using namespace std::literals::string_view_literals;
@@ -43,9 +45,12 @@ constexpr auto log_exception()
    return [](const std::exception_ptr& ptr) { std::println("{}", what(ptr)); };
 }
 
-constexpr auto log_exception(std::string_view prefix)
+constexpr auto log_exception(std::string prefix)
 {
-   return [=](const std::exception_ptr& ptr) { std::println("{}: {}", prefix, what(ptr)); };
+   return [prefix = std::move(prefix)](const std::exception_ptr& ptr)
+   {
+      std::println("{}: {}", prefix, what(ptr));
+   };
 }
 
 // =================================================================================================

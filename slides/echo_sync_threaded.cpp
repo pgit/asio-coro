@@ -16,14 +16,14 @@ void session(tcp::socket s)
    }
 }
 
-void listen(tcp::acceptor a)
+void server(tcp::acceptor a)
 {
    for (;;)
-      session(a.accept());
+      std::thread(session, a.accept()).detach();  // was: session(a.accept());
 }
 
 int main()
 {
    io_context ctx;
-   listen({ctx, {tcp::v6(), 55555}});
+   server({ctx, {tcp::v6(), 55555}});
 }

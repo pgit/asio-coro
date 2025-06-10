@@ -169,4 +169,28 @@ TEST_F(CompletionToken, WHEN_timer_completes_THEN_coroutine_is_resumed)
       detached);
 }
 
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(CompletionToken, WHEN_timer_completes_THEN_deferred_invokes_handler_later)
+{
+   steady_timer timer(executor);
+   timer.expires_after(50ms);
+
+   bool handler_called = false;
+   auto deferred_op = timer.async_wait(deferred);
+
+   // The operation is lazy, so it is not started until we invoke it.
+   std::this_thread::sleep_for(60ms);
+   EXPECT_FALSE(handler_called);
+
+   // Now, invoke the deferred operation, which will initiate the async operation.
+   deferred_op([&](error_code) { handler_called = true; });
+   EXPECT_FALSE(handler_called);
+   std::this_thread::sleep_for(1ms);
+   EXPECT_FALSE(handler_called);
+
+   std::this_thread::sleep_for(60ms);
+   EXPECT_TRUE(handler_called);
+}
+
 // =================================================================================================

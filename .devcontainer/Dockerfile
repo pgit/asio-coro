@@ -28,6 +28,21 @@ RUN cd /home/${USERNAME} && \
     chown $USERNAME .gdbinit
 
 #
+# Install 'ping' used by Process.* tests
+#
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
+    apt-get -y upgrade && \
+    apt-get -y install iputils-ping && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+#
+# Customize Environment
+#
+RUN echo "export LESS=RS" >> "/home/$USERNAME/.bashrc"
+RUN echo "alias l='ls -la'" >> "/home/$USERNAME/.bashrc"
+
+#
 # enable persistent bash history in container
 #
 # https://code.visualstudio.com/remote/advancedcontainers/persist-bash-history
@@ -45,8 +60,5 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
     && touch /commandhistory/.bash_history \
     && chown -R $USERNAME /commandhistory \
     && echo "$SNIPPET" >> "/home/$USERNAME/.bashrc"
-
-RUN echo "export LESS=RS" >> "/home/$USERNAME/.bashrc"
-RUN echo "alias l='ls -la'" >> "/home/$USERNAME/.bashrc"
 
 SHELL ["/bin/bash", "-c"]
