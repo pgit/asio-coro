@@ -3,7 +3,7 @@
 
 awaitable<void> session(tcp::socket& socket)
 {
-   std::array<char, 1460> data;
+   std::array<char, 64 * 1024> data;
    for (;;)
    {
       size_t n = co_await socket.async_read_some(buffer(data));

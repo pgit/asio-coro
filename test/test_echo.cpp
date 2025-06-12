@@ -40,7 +40,7 @@ public:
 
    awaitable<void> session(tcp::socket socket)
    {
-      std::array<char, 1460> data;
+      std::array<char, 64 * 1024> data;
       for (;;)
       {
          auto [ec, n] = co_await socket.async_read_some(buffer(data), as_tuple);
@@ -150,7 +150,7 @@ TEST_F(Echo, WHEN_send_hello_THEN_receive_echo)
       co_await socket.async_send(buffer(hello));
       socket.shutdown(socket_base::shutdown_send);
 
-      std::array<char, 1460> data;
+      std::array<char, 64 * 1024> data;
       // auto n = co_await socket.async_read_some(buffer(data));
       auto [ec, n] = co_await async_read(socket, buffer(data), as_tuple);
       EXPECT_EQ(ec, asio::error::eof);
@@ -180,7 +180,7 @@ TEST_F(Echo, WHEN_send_hello_in_chunks_THEN_receive_echo)
 
       auto receiver = [&]() -> awaitable<void>
       {
-         std::array<char, 1460> data;
+         std::array<char, 64 * 1024> data;
          auto [ec, n] = co_await async_read(socket, buffer(data), as_tuple);
          EXPECT_EQ(ec, asio::error::eof);
          EXPECT_EQ(n, hello.length());
@@ -198,7 +198,7 @@ TEST_F(Echo, WHEN_socket_closed_THEN_read_fails)
    {
       socket.shutdown(socket_base::shutdown_send);
 
-      std::array<char, 1460> data;
+      std::array<char, 64 * 1024> data;
       EXPECT_THROW(co_await socket.async_read_some(buffer(data)), system_error);
    };
    EXPECT_NO_THROW(run());
