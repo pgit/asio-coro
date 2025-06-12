@@ -38,10 +38,7 @@ find_package(Boost 1.78 COMPONENTS system thread filesystem process program_opti
 find_package(OpenSSL COMPONENTS)
 find_package(Threads)
 
-find_package(fmt)
-
 link_libraries(Threads::Threads)
-link_libraries(OpenSSL::SSL)
 link_libraries(Boost::system Boost::thread Boost::atomic)
 
 # --------------------------------------------------------------------------------------------------
