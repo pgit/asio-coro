@@ -28,3 +28,14 @@ dd if=/dev/zero bs=1K count=1M|nc -N localhost 55555|dd of=/dev/null
 
 # Testcases
 A few examples are implement as Google Test units `test/test_*.cpp`. This way, we can easily run and debug them in Visual Studio Code, using [C++ TestMate](https://marketplace.visualstudio.com/items?itemName=matepek.vscode-catch2-test-adapter).
+
+## Manual Testing
+
+Example: 5 clients, each sending 512 MiB of data to a echo server listening on `[::1]:55555`:
+```bash
+forr ((i=0; i<5; ++i))
+do
+   dd if=/dev/zero bs=$((1024*1024)) count=512 \
+   | nc -N ::1 55555 >/dev/null&
+done; time wait
+```
