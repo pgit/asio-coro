@@ -5,7 +5,7 @@ using ip::tcp;
 
 awaitable<void> session(tcp::socket socket)
 {
-   std::array<char, 1024*64> data;
+   std::array<char, 64 * 1024> data;
    for (;;)
    {
       size_t n = co_await socket.async_read_some(buffer(data));
@@ -23,11 +23,11 @@ int main()
 {
    io_context context;
    co_spawn(context, server({context, {tcp::v6(), 55555}}), detached);
-   
+
    std::vector<std::thread> threads(std::thread::hardware_concurrency());
    for (auto& thread : threads)
       thread = std::thread([&]() { context.run(); });
    context.run();
    for (auto& thread : threads)
-      thread.join();   
+      thread.join();
 }

@@ -27,7 +27,7 @@ awaitable<void> server(tcp::acceptor a)
 
 int main()
 {
-   io_context ctx;
-   co_spawn(ctx, server({ctx, {tcp::v6(), 55555}}), detached);
-   ctx.run();
+   io_context context;
+   co_spawn(context, server({context, {tcp::v6(), 55555}}), detached);
+   context.run();
 }

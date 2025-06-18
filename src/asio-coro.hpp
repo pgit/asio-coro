@@ -10,6 +10,7 @@ using ip::tcp;
 
 using boost::system::error_code;
 using boost::system::system_error;
+using boost::scope::make_scope_exit;
 
 using namespace std::chrono_literals;
 using namespace std::literals::string_view_literals;

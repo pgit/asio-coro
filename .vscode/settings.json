@@ -4,7 +4,7 @@
          "pattern": "build/test/*",
          "runTask": {
             "before": [
-               "CMake Build"
+               "CMake Build (custom)"
             ]
          },
          "env": {"TSAN_OPTIONS": "halt_on_error=1"}

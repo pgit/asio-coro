@@ -1,4 +1,5 @@
 #include <format>
+#include <ranges>
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -44,6 +45,18 @@ struct std::formatter<ip::tcp::endpoint> : std::formatter<std::string>
       return std::formatter<std::string>::format(std::move(stream).str(), ctx);
    }
 };
+
+// =================================================================================================
+
+inline auto split(std::string_view lines)
+{
+   if (lines.ends_with('\n'))
+      lines = lines.substr(0, lines.size() - 1);
+
+   return lines | std::views::split('\n') |
+          std::views::transform([](auto range) {
+             return std::string_view(range); });
+}
 
 // =================================================================================================
 

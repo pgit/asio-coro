@@ -24,6 +24,6 @@ void server(tcp::acceptor a)
 
 int main()
 {
-   io_context ctx;
-   server({ctx, {tcp::v6(), 55555}});
+   io_context context;
+   server({context, {tcp::v6(), 55555}});
 }

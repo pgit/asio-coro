@@ -24,18 +24,18 @@ using namespace std::chrono_literals;
 /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {
-   auto log = [&](auto line) { std::println("{}: \x1b[32m{}\x1b[0m", prefix, line); };
+   auto print = [&](auto line) { std::println("{}: \x1b[32m{}\x1b[0m", prefix, line); };
 
    std::string buffer;
    try
    {
       // clang-format off
-      auto finally = boost::scope::scope_exit([&]() { if (!buffer.empty()) log(buffer); });
+      auto finally = boost::scope::make_scope_exit([&]() { if (!buffer.empty()) print(buffer); });
       // clang-format on
       for (;;)
       {
-         auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
-         log(std::string_view(buffer).substr(0, n - 1));
+         auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n', deferred);
+         print(std::string_view(buffer).substr(0, n - 1));
          buffer.erase(0, n);
       }
    }
@@ -54,18 +54,18 @@ awaitable<void> log(readable_pipe& out, readable_pipe& err)
    co_await (log("STDOUT", out) && log("STDERR", err));
 }
 
-awaitable<void> sleep(std::chrono::steady_clock::duration timeout)
+awaitable<void> sleep(steady_timer::duration timeout)
 {
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(timeout);
-   co_await timer.async_wait();
+   co_await timer.async_wait(deferred);
 }
 
 // =================================================================================================
 
 /// Execute process \p path with given \p args, interrupting it after \p timeout.
 awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args,
-                        std::chrono::steady_clock::duration timeout)
+                       std::chrono::steady_clock::duration timeout)
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -118,7 +118,7 @@ awaitable<void> execute_stdout(std::filesystem::path path, std::vector<std::stri
    auto executor = co_await this_coro::executor;
    readable_pipe out(executor);
    bp::process child(executor, bp::filesystem::path(path), std::move(args),
-                     bp::process_stdio{{}, out, {}});
+                     bp::process_stdio{.out = out});
 
    co_await log("STDOUT", out);
    co_await child.async_wait();

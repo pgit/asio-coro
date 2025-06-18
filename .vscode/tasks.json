@@ -2,15 +2,25 @@
    "version": "2.0.0",
    "tasks": [
       {
-         "label": "CMake Build",
+         "label": "CMake Build (custom)",
          "type": "shell",
          "command": "cmake --build build",
          "group": {
             "kind": "build",
             "isDefault": true
          },
-         "problemMatcher": ["$gcc"],
-         "detail": "Build the project using CMake"
+         "problemMatcher": [
+            "$gcc"
+         ],
+         "detail": "Build the project using CMake",
+         "presentation": {
+            "echo": true,
+            "reveal": "never",
+            "focus": false,
+            "panel": "shared",
+            "showReuseMessage": true,
+            "clear": false
+         }
       }
    ]
 }
