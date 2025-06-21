@@ -2,9 +2,9 @@
 This is a collection of samples for using C++20 coroutines with ASIO.
 
 # Development Devcontainer
-This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in a [GitHub Codespace](https://github.com/features/codespaces). The image is based on [CPP Devcontainer](https://github.com/pgit/cpp-devcontainer).
+This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in [GitHub Codespaces](https://github.com/features/codespaces). The container image is based on [CPP Devcontainer](https://github.com/pgit/cpp-devcontainer), which contians recent LLVM and Boost versions.
 
-After opening, press `F7` to compile using CMake. On first startup, the CMake Plugin will ask you for a kit, select `[Unspecified]` or `clang` (the latter may take some time to appear, when scanning has finished).
+After opening the project in the container, press `F7` to compile using CMake. On first startup, the CMake Plugin will ask you for a kit, select `[Unspecified]` or `clang` (the latter may take some time to appear, when scanning has finished).
 
 After that, you can open a `*.cpp` file. This workspace is configured to use the [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd) plugin for syntax highlighting and indexing. That may take a while to complete, watch the `indexìng 1/20` in the status bar. You may have to run the command `clangd: Restart language server` once for it to pick up on changes to `build/compile_commands.json`.
 
@@ -23,7 +23,16 @@ socat STDIN TCP-CONNECT:[::1]:55555
 To test echo speed, you can use `netcat` like this:
 
 ```bash
-dd if=/dev/zero bs=1K count=1M|nc -N localhost 55555|dd of=/dev/null
+dd if=/dev/zero bs=1M count=512|nc -N localhost 55555|dd of=/dev/null
+```
+
+To simulate multiple clients:
+
+```bash
+for ((i=0; i<5; ++i))
+do
+   dd if=/dev/zero bs=1M count=512 | nc -N localhost 55555 >/dev/null&
+done; time wait
 ```
 
 # Testcases
@@ -32,10 +41,3 @@ A few examples are implement as Google Test units `test/test_*.cpp`. This way, w
 ## Manual Testing
 
 Example: 5 clients, each sending 512 MiB of data to a echo server listening on `[::1]:55555`:
-```bash
-forr ((i=0; i<5; ++i))
-do
-   dd if=/dev/zero bs=$((1024*1024)) count=512 \
-   | nc -N ::1 55555 >/dev/null&
-done; time wait
-```

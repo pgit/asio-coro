@@ -51,6 +51,10 @@ inline std::string what(const std::exception_ptr& ptr)
       {
          std::rethrow_exception(ptr);
       }
+      catch (multiple_exceptions& ex)
+      {
+         return what(ex.first_exception());
+      }
       catch (boost::system::system_error& ex)
       {
          return ex.code().message();
@@ -67,11 +71,14 @@ constexpr auto log_exception()
    return [](const std::exception_ptr& ptr) { std::println("{}", what(ptr)); };
 }
 
+
+template<typename... Args>
 constexpr auto log_exception(std::string prefix)
 {
-   return [prefix = std::move(prefix)](const std::exception_ptr& ptr)
+   return [prefix = std::move(prefix)](const std::exception_ptr& ptr, Args&&... args)
    {
       std::println("{}: {}", prefix, what(ptr));
+      (std::println("{}:   result={}", prefix, std::forward<Args>(args)), ...);
    };
 }
 
