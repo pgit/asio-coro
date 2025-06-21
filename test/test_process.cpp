@@ -1,6 +1,7 @@
 #include "asio-coro.hpp"
 #include "utils.hpp"
 
+#include <boost/process/v2/execute.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 
@@ -64,8 +65,8 @@ constexpr auto forever = steady_timer::duration::max();
 
 // -------------------------------------------------------------------------------------------------
 
-awaitable<void> execute(std::filesystem::path path, std::vector<std::string> args,
-                        std::optional<steady_timer::duration> timeout = std::nullopt)
+// https://www.boost.org/doc/libs/1_80_0/doc/html/boost_process/v2.html
+awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -73,7 +74,14 @@ awaitable<void> execute(std::filesystem::path path, std::vector<std::string> arg
    readable_pipe out(executor), err(executor);
    bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
+   signal_set signals(executor, SIGINT, SIGTERM);
+   signals.async_wait([&](error_code error, auto signum)
+                      { std::println(" INTERRUPTED (signal {})", signum); });
+
    std::println("execute: communicating...");
+#if 0
+   co_return co_await (bp::async_execute(std::move(child), use_awaitable) && log(out, err));
+#else
    auto result = co_await co_spawn(executor, log(out, err), as_tuple);
    if (std::get<0>(result))
    {
@@ -93,11 +101,13 @@ awaitable<void> execute(std::filesystem::path path, std::vector<std::string> arg
          }
       }
    }
+#endif
    std::println("execute: communicating... done");
 
    std::println("execute: waiting for process...");
    co_await child.async_wait();
    std::println("execute: waiting for process... done, exit code {}", child.exit_code());
+   co_return child.exit_code();
 }
 
 // =================================================================================================
@@ -108,13 +118,11 @@ protected:
    void spawn_execute(std::filesystem::path path, std::vector<std::string> args = {},
                       std::optional<steady_timer::duration> timeout = 5s)
    {
-      // co_spawn(context, execute(std::move(path), std::move(args), timeout),
-      // log_exception("spawn"));
       if (timeout)
          co_spawn(context, execute(std::move(path), std::move(args)),
-                  cancel_after(*timeout, log_exception("spawn")));
+                  cancel_after(*timeout, log_exception<int>("spawn")));
       else
-         co_spawn(context, execute(std::move(path), std::move(args)), log_exception("spawn"));
+         co_spawn(context, execute(std::move(path), std::move(args)), log_exception<int>("spawn"));
    }
 
    io_context context;
@@ -149,6 +157,27 @@ TEST_F(Process, Interrupt)
 
 // -------------------------------------------------------------------------------------------------
 
+TEST_F(Process, WHEN_cancelled_terminal_THEN_)
+{
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            cancel_after(250ms, cancellation_type::terminal, log_exception<int>("spawn")));
+   context.run();
+}
+TEST_F(Process, WHEN_cancelled_partial_THEN_)
+{
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            cancel_after(250ms, cancellation_type::partial, log_exception<int>("spawn")));
+   context.run();
+}
+TEST_F(Process, WHEN_cancelled_total_THEN_)
+{
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            cancel_after(250ms, cancellation_type::total, log_exception<int>("spawn")));
+   context.run();
+}
+
+// -------------------------------------------------------------------------------------------------
+
 TEST_F(Process, WHEN_timeout_THEN_is_interrupted)
 {
    spawn_execute("/usr/bin/bash", {"-c", "echo Hello!"}, 250ms);
@@ -164,10 +193,11 @@ TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout)
 TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_buffered)
 {
    spawn_execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}, 250ms);
-   context.run();
+   spawn_execute("/usr/bin/stdbuf", {"-oL", "build/src/ignore_sigint"}, 250ms);
+   ::run(context);
 }
 
-TEST_F(Process, WHEN_ignores_sigterm_THEN_runs_into_timeout)
+TEST_F(Process, WHEN_ignores_all_signals_THEN_runs_into_timeout)
 {
    spawn_execute("/usr/bin/bash",
                  {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10"}, 250ms);
@@ -176,19 +206,19 @@ TEST_F(Process, WHEN_ignores_sigterm_THEN_runs_into_timeout)
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(Process, EchoNoNewline)
+TEST_F(Process, WHEN_no_newline_at_end_of_output_THEN_prints_line)
 {
    spawn_execute("/usr/bin/echo", {"-n", "There is no newline at the end of this"});
    ::run(context);
 }
 
-TEST_F(Process, Fail)
+TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 {
    spawn_execute("/usr/bin/false");
    ::run(context);
 }
 
-TEST_F(Process, NotFound)
+TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_noch_such_file_or_directory)
 {
    spawn_execute("/path/does/not/exist");
    ::run(context);
