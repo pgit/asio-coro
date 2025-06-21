@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <print>
+#include <ranges>
 
 using namespace boost::asio;
 using namespace experimental::awaitable_operators;
@@ -21,6 +22,16 @@ using namespace std::chrono_literals;
 
 // =================================================================================================
 
+/// Transform \p lines into a range of \c string_view, splitting at LF. Skip last line if empty.
+auto split(std::string_view lines)
+{
+   if (lines.ends_with('\n'))
+      lines.remove_suffix(1);
+
+   return lines | std::views::split('\n') |
+          std::views::transform([](auto range) { return std::string_view(range); });
+}
+
 /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {
@@ -29,9 +40,6 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    std::string buffer;
    try
    {
-      // clang-format off
-      auto finally = boost::scope::make_scope_exit([&]() { if (!buffer.empty()) print(buffer); });
-      // clang-format on
       for (;;)
       {
          auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n', deferred);
@@ -41,6 +49,9 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    }
    catch (const system_error& ec)
    {
+      for (auto line : split(buffer))
+         print(line);
+
       if (ec.code() != error::eof)
       {
          std::println("log: {}", ec.code().message());
@@ -58,7 +69,7 @@ awaitable<void> sleep(steady_timer::duration timeout)
 {
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(timeout);
-   co_await timer.async_wait(deferred);
+   co_await timer.async_wait();
 }
 
 // =================================================================================================
@@ -74,17 +85,19 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
    bp::process child(context, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
    std::println("execute: communicating...");
-   // co_await co_spawn(context, log(out, err), cancel_after(timeout, as_tuple));
-   // auto result = co_await (log(out, err) || sleep(timeout));
-   auto result = co_await (log("STDOUT", out) && log("STDERR", err) || sleep(timeout));
-   // std::println("execute: communicating... done ({})", result.index());
-
-   child.interrupt();
+   auto result = co_await (log(out, err) || sleep(timeout));
+   if (result.index() == 0)
+      std::println("execute: communicating... done");
+   else
+   {
+      std::println("execute: communicating... timeout", result.index());
+      child.interrupt();
+   }
 
    //
    // Give the process another second to exit after interrupting it, then terminate.
    //
-   co_await (log("STDOUT", out) && log("STDERR", err) || sleep(1s));
+   result = co_await (log("STDOUT", out) && log("STDERR", err) || sleep(1s));
    child.terminate();
 
    //

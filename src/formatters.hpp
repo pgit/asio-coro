@@ -48,14 +48,15 @@ struct std::formatter<ip::tcp::endpoint> : std::formatter<std::string>
 
 // =================================================================================================
 
+/// Transform \p lines into a range of \c string_view, splitting at LF. Skip last line if empty.
 inline auto split(std::string_view lines)
 {
    if (lines.ends_with('\n'))
-      lines = lines.substr(0, lines.size() - 1);
+      lines.remove_suffix(1);
 
-   return lines | std::views::split('\n') |
-          std::views::transform([](auto range) {
-             return std::string_view(range); });
+   return lines | std::views::split('\n') | std::views::transform([](auto range){
+      return std::string_view(range);
+   });
 }
 
 // =================================================================================================

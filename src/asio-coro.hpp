@@ -18,6 +18,27 @@ using namespace experimental::awaitable_operators;
 
 // =================================================================================================
 
+inline error_code code(const std::exception_ptr& ptr)
+{
+   if (!ptr)
+      return {};
+   else
+   {
+      try
+      {
+         std::rethrow_exception(ptr);
+      }
+      catch (multiple_exceptions& mex)
+      {
+         return code(mex.first_exception());
+      }
+      catch (boost::system::system_error& ex)
+      {
+         return ex.code();
+      }
+   }
+
+}
 inline std::string what(const error_code ec) { return ec.message(); }
 
 inline std::string what(const std::exception_ptr& ptr)

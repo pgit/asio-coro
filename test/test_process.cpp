@@ -8,7 +8,8 @@
 
 #include <filesystem>
 #include <print>
-#include <ranges>
+
+using namespace boost::asio;
 
 namespace bp = boost::process::v2;
 
@@ -39,7 +40,7 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 
       if (ec.code() != error::eof)
       {
-         std::println("log: {}", ec.code().message());
+         std::println("{}: {}", prefix, ec.code().message());
          throw;
       }
    }
@@ -52,12 +53,33 @@ awaitable<void> log(readable_pipe& out, readable_pipe& err)
    co_await (log("STDOUT", out) && log("STDERR", err));
 }
 
+awaitable<error_code> log_nothrow(readable_pipe& out, readable_pipe& err)
+{
+   try
+   {
+      co_await log(out, err);
+   }
+   catch (const multiple_exceptions& mex)
+   {
+      co_return code(mex.first_exception());
+   }
+   catch (const system_error& err)
+   {
+      co_return err.code();
+   }
+   co_return error_code{};
+}
+
 awaitable<void> sleep(steady_timer::duration timeout)
 {
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(timeout);
    co_await timer.async_wait();
 }
+
+constexpr auto forever = steady_timer::duration::max();
+
+// -------------------------------------------------------------------------------------------------
 
 awaitable<void> execute(std::filesystem::path path, std::vector<std::string> args,
                         std::optional<steady_timer::duration> timeout = std::nullopt)
@@ -68,27 +90,27 @@ awaitable<void> execute(std::filesystem::path path, std::vector<std::string> arg
    readable_pipe out(executor), err(executor);
    bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
-   signal_set signals(executor, SIGINT, SIGTERM);
-   signals.async_wait(
-      [&](error_code error, auto signum)
-      {
-         if (error == boost::system::errc::operation_canceled)
-            return;
-
-         std::println(" INTERRUPTED ({}, signal {})", error.message(), signum);
-         child.interrupt();
-      });
-
    std::println("execute: communicating...");
-   if (timeout)
-      co_await (log(out, err) || sleep(*timeout));
-   else
-      co_await (log(out, err));
+   // auto result = co_await (log(out, err) || sleep(timeout.value_or(forever)));
+   if (co_await log_nothrow(out, err) == boost::system::errc::operation_canceled)
+   {
+      (co_await this_coro::cancellation_state).clear();
+      std::println("execute: communicating... timeout, interrupting (SIGINT)...");
+      child.interrupt();
+      auto result = co_await (log(out, err) || sleep(1s));
+      if (result.index() == 1)
+      {
+         std::println("execute: communicating... timeout, requesting exit (SIGTERM)...");
+         child.request_exit();
+         result = co_await (log(out, err) || sleep(1s));
+         if (result.index() == 1)
+         {
+            std::println("execute: communicating... timeout, terminating (SIGKILL)...");
+            child.terminate();
+         }
+      }
+   }
    std::println("execute: communicating... done");
-   child.interrupt();
-
-   co_await (log("STDOUT", out) && log("STDERR", err) || sleep(1s));
-   child.terminate();
 
    std::println("execute: waiting for process...");
    co_await child.async_wait();
@@ -103,7 +125,13 @@ protected:
    void spawn_execute(std::filesystem::path path, std::vector<std::string> args = {},
                       std::optional<steady_timer::duration> timeout = 5s)
    {
-      co_spawn(context, execute(std::move(path), std::move(args), timeout), log_exception("spawn"));
+      // co_spawn(context, execute(std::move(path), std::move(args), timeout),
+      // log_exception("spawn"));
+      if (timeout)
+         co_spawn(context, execute(std::move(path), std::move(args)),
+                  cancel_after(*timeout, log_exception("spawn")));
+      else
+         co_spawn(context, execute(std::move(path), std::move(args)), log_exception("spawn"));
    }
 
    io_context context;
@@ -135,6 +163,41 @@ TEST_F(Process, Interrupt)
    spawn_execute("/usr/bin/ping", {"127.0.0.1", "-i", "0.1"}, 250ms);
    context.run();
 }
+
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(Process, WHEN_timeout_THEN_is_interrupted)
+{
+   spawn_execute("/usr/bin/bash", {"-c", "echo Hello!"}, 250ms);
+   context.run();
+}
+
+TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout)
+{
+   spawn_execute("build/src/ignore_sigint", {}, 250ms);
+   context.run();
+}
+
+TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_buffered)
+{
+   spawn_execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}, 250ms);
+   context.run();
+}
+
+TEST_F(Process, test)
+{
+   spawn_execute("test.sh", {}, 250ms);
+   context.run();
+}
+
+TEST_F(Process, WHEN_ignores_sigterm_THEN_runs_into_timeout)
+{
+   spawn_execute("/usr/bin/bash",
+                 {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10"}, 250ms);
+   context.run();
+}
+
+// -------------------------------------------------------------------------------------------------
 
 TEST_F(Process, EchoNoNewline)
 {
