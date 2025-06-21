@@ -53,23 +53,6 @@ awaitable<void> log(readable_pipe& out, readable_pipe& err)
    co_await (log("STDOUT", out) && log("STDERR", err));
 }
 
-awaitable<error_code> log_nothrow(readable_pipe& out, readable_pipe& err)
-{
-   try
-   {
-      co_await log(out, err);
-   }
-   catch (const multiple_exceptions& mex)
-   {
-      co_return code(mex.first_exception());
-   }
-   catch (const system_error& err)
-   {
-      co_return err.code();
-   }
-   co_return error_code{};
-}
-
 awaitable<void> sleep(steady_timer::duration timeout)
 {
    steady_timer timer(co_await this_coro::executor);
@@ -91,8 +74,8 @@ awaitable<void> execute(std::filesystem::path path, std::vector<std::string> arg
    bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
    std::println("execute: communicating...");
-   // auto result = co_await (log(out, err) || sleep(timeout.value_or(forever)));
-   if (co_await log_nothrow(out, err) == boost::system::errc::operation_canceled)
+   auto result = co_await co_spawn(executor, log(out, err), as_tuple);
+   if (std::get<0>(result))
    {
       (co_await this_coro::cancellation_state).clear();
       std::println("execute: communicating... timeout, interrupting (SIGINT)...");
@@ -181,12 +164,6 @@ TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout)
 TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_buffered)
 {
    spawn_execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}, 250ms);
-   context.run();
-}
-
-TEST_F(Process, test)
-{
-   spawn_execute("test.sh", {}, 250ms);
    context.run();
 }
 
