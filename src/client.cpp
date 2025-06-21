@@ -9,7 +9,7 @@ struct ClientConfig
 {
    size_t buffer_size = 64 * 1024;
    std::optional<size_t> size;
-   std::optional<steady_clock::duration> time = 3s;
+   std::optional<steady_clock::duration> time = 1s;
 };
 
 class Client
@@ -18,6 +18,10 @@ public:
    Client(ClientConfig config) : config_(std::move(config)) { assert(config_.buffer_size > 0); }
 
 private:
+   /*
+    * Write as much data to the socket as possible, until either the configured limit has been
+    * reached or this coroutine is cancelled.
+    */
    awaitable<size_t> write_loop(tcp::socket& socket)
    {
       size_t total = 0;
@@ -146,7 +150,6 @@ int main()
    context.run();
    for (auto& thread : threads)
       thread.join();
-   auto dt = floor<milliseconds>(steady_clock::now() - t0);
 
    //
    // Collect results.
@@ -168,6 +171,7 @@ int main()
       }
    }
 
+   auto dt = std::max(1ms, floor<milliseconds>(steady_clock::now() - t0));
    std::println("Total bytes transferred: {} at {} MB/s", Bytes(total),
                 total * 1000 / 1024 / 1024 / dt.count());
 }
