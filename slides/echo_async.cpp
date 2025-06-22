@@ -41,7 +41,7 @@ class server
 {
 public:
    server(boost::asio::io_context& io_context, tcp::endpoint endpoint)
-      : acceptor_(io_context, endpoint), socket_(io_context)
+      : acceptor_(io_context, endpoint)
    {
       do_accept();
    }
@@ -49,18 +49,16 @@ public:
 private:
    void do_accept()
    {
-      acceptor_.async_accept(socket_,
-                             [this](error_code ec)
-                             {
-                                if (!ec)
-                                   std::make_shared<session>(std::move(socket_))->start();
+      acceptor_.async_accept([this](error_code ec, tcp::socket socket)
+         {
+            if (!ec)
+               std::make_shared<session>(std::move(socket))->start();
 
-                                do_accept();
-                             });
+            do_accept();
+         });
    }
 
    tcp::acceptor acceptor_;
-   tcp::socket socket_;
 };
 
 int main(int argc, char* argv[])
