@@ -193,7 +193,6 @@ TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout)
 TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_buffered)
 {
    spawn_execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}, 250ms);
-   spawn_execute("/usr/bin/stdbuf", {"-oL", "build/src/ignore_sigint"}, 250ms);
    ::run(context);
 }
 

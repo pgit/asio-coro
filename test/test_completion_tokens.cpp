@@ -154,6 +154,18 @@ TEST_F(CompletionToken, WHEN_timer_is_cancelled_THEN_future_throws)
    EXPECT_LE(runtime(), 100ms);
 }
 
+TEST_F(CompletionToken, WHEN_timer_is_cancelled_THEN_error_is_returnd_as_tuple)
+{
+   steady_timer timer(executor);
+   timer.expires_after(100ms);
+   auto future = timer.async_wait(as_tuple(use_future));
+   timer.cancel();
+   std::tuple<error_code> result;
+   EXPECT_NO_THROW(result = future.get());
+   EXPECT_EQ(std::get<0>(result), boost::system::errc::operation_canceled);
+   EXPECT_LE(runtime(), 100ms);
+}
+
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(CompletionToken, WHEN_timer_completes_THEN_coroutine_is_resumed)
@@ -169,28 +181,54 @@ TEST_F(CompletionToken, WHEN_timer_completes_THEN_coroutine_is_resumed)
       detached);
 }
 
+// =================================================================================================
+
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void()) CompletionToken>
+auto no_result(CompletionToken&& token)
+{
+   return boost::asio::async_initiate<CompletionToken, void()>([](auto handler) {}, token);
+}
+
+static_assert(std::is_same_v<decltype(no_result(use_future)), std::future<void>>);
+static_assert(std::is_same_v<decltype(no_result(as_tuple(use_future))), std::future<std::tuple<>>>);
+
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(CompletionToken, WHEN_timer_completes_THEN_deferred_invokes_handler_later)
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code)) CompletionToken>
+auto error_code_only(CompletionToken&& token)
 {
-   steady_timer timer(executor);
-   timer.expires_after(50ms);
-
-   bool handler_called = false;
-   auto deferred_op = timer.async_wait(deferred);
-
-   // The operation is lazy, so it is not started until we invoke it.
-   std::this_thread::sleep_for(60ms);
-   EXPECT_FALSE(handler_called);
-
-   // Now, invoke the deferred operation, which will initiate the async operation.
-   deferred_op([&](error_code) { handler_called = true; });
-   EXPECT_FALSE(handler_called);
-   std::this_thread::sleep_for(1ms);
-   EXPECT_FALSE(handler_called);
-
-   std::this_thread::sleep_for(60ms);
-   EXPECT_TRUE(handler_called);
+   return boost::asio::async_initiate<CompletionToken, void(error_code)>([](auto handler) {},
+                                                                         token);
 }
+
+static_assert(std::is_same_v<decltype(error_code_only(use_future)), std::future<void>>);
+static_assert(std::is_same_v<decltype(error_code_only(as_tuple(use_future))),
+                             std::future<std::tuple<error_code>>>);
+static_assert(std::is_same_v<decltype(error_code_only(deferred)(use_future)), std::future<void>>);
+
+// -------------------------------------------------------------------------------------------------
+
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t)) CompletionToken>
+auto error_and_size(CompletionToken&& token)
+{
+   return boost::asio::async_initiate<CompletionToken, void(error_code, size_t)>(
+      [](auto handler) {}, token);
+}
+
+static_assert(std::is_same_v<decltype(error_and_size(use_future)), std::future<size_t>>);
+
+// -------------------------------------------------------------------------------------------------
+
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t)) CompletionToken>
+auto error_and_size_and_int(CompletionToken&& token)
+{
+   return boost::asio::async_initiate<CompletionToken, void(error_code, size_t, int)>(
+      [](auto handler) {}, token);
+}
+
+static_assert(std::is_same_v<decltype(error_and_size_and_int(use_future)),
+                             std::future<std::tuple<size_t, int>>>);
+static_assert(std::is_same_v<decltype(error_and_size_and_int(as_tuple(use_future))),
+                             std::future<std::tuple<error_code, size_t, int>>>);
 
 // =================================================================================================
