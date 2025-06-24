@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
       context,
       [&]() -> awaitable<void>
       {
-         for (int i = 0; i < 2; ++i)
+         for (int i = 0; i < 1; ++i)
          {
             int signum = co_await sigint.async_wait();
             std::println(" INTERRUPTED (signal {})", signum);

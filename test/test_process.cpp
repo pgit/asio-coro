@@ -70,19 +70,32 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
+   /// Enabling total cancelleation implies enabling partial and terminal cancellation.
+   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+
    auto executor = co_await this_coro::executor;
    readable_pipe out(executor), err(executor);
    bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
-   signal_set signals(executor, SIGINT, SIGTERM);
-   signals.async_wait([&](error_code error, auto signum)
-                      { std::println(" INTERRUPTED (signal {})", signum); });
+   // signal_set signals(executor, SIGINT, SIGTERM);
+   // signals.async_wait([&](error_code error, auto signum)
+   //                    { std::println(" INTERRUPTED (signal {})", signum); });
 
    std::println("execute: communicating...");
-#if 0
-   co_return co_await (bp::async_execute(std::move(child), use_awaitable) && log(out, err));
+#if 1
+   // co_return co_await (bp::async_execute(std::move(child), use_awaitable) && log(out, err));
+   co_spawn(executor, log(out, err), detached);
+   auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple(deferred));
+#if 1
+   auto tp = (co_await this_coro::cancellation_state).cancelled();
+   if ((tp & cancellation_type::terminal) != cancellation_type::none)
+      co_return 9;
+#endif
+   co_return rc;
 #else
    auto result = co_await co_spawn(executor, log(out, err), as_tuple);
+   auto cs = co_await this_coro::cancellation_state;
+   std::println("excecute: cancellation state: cancelled={}", std::to_underlying(cs.cancelled()));
    if (std::get<0>(result))
    {
       (co_await this_coro::cancellation_state).clear();
@@ -176,6 +189,25 @@ TEST_F(Process, WHEN_cancelled_total_THEN_)
    context.run();
 }
 
+TEST_F(Process, WHEN_cancelled_terminal_THEN_2)
+{
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+            cancel_after(250ms, cancellation_type::terminal, log_exception<int>("spawn")));
+   context.run();
+}
+TEST_F(Process, WHEN_cancelled_partial_THEN_2)
+{
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+            cancel_after(250ms, cancellation_type::partial, log_exception<int>("spawn")));
+   context.run();
+}
+TEST_F(Process, WHEN_cancelled_total_THEN_2)
+{
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+            cancel_after(250ms, cancellation_type::total, log_exception<int>("spawn")));
+   context.run();
+}
+
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(Process, WHEN_timeout_THEN_is_interrupted)
@@ -190,7 +222,7 @@ TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout)
    context.run();
 }
 
-TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_buffered)
+TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_unbuffered)
 {
    spawn_execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}, 250ms);
    ::run(context);
