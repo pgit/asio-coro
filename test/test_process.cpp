@@ -39,6 +39,11 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
       for (auto line : split(buffer))
          print(line);
 
+#if 0
+      if (ec.code() == boost::system::errc::operation_canceled)
+         ;
+      else
+#endif
       if (ec.code() != error::eof)
       {
          std::println("{}: {}", prefix, ec.code().message());
@@ -70,8 +75,9 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
-   /// Enabling total cancelleation implies enabling partial and terminal cancellation.
+   // We support all three types of cancellation, total, partial and terminal.
    co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+   auto cs = (co_await this_coro::cancellation_state);
 
    auto executor = co_await this_coro::executor;
    readable_pipe out(executor), err(executor);
@@ -83,20 +89,16 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 
    std::println("execute: communicating...");
 #if 1
-   // co_return co_await (bp::async_execute(std::move(child), use_awaitable) && log(out, err));
    co_spawn(executor, log(out, err), detached);
-   auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple(deferred));
-#if 1
-   auto tp = (co_await this_coro::cancellation_state).cancelled();
-   if ((tp & cancellation_type::terminal) != cancellation_type::none)
+   auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
+   if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
       co_return 9;
-#endif
    co_return rc;
 #else
    auto result = co_await co_spawn(executor, log(out, err), as_tuple);
-   auto cs = co_await this_coro::cancellation_state;
-   std::println("excecute: cancellation state: cancelled={}", std::to_underlying(cs.cancelled()));
-   if (std::get<0>(result))
+   std::println("execute: cancellation state: {}", std::to_underlying(cs.cancelled()));
+   if (cs.cancelled() != cancellation_type::none)
+   // if (std::get<0>(result))
    {
       (co_await this_coro::cancellation_state).clear();
       std::println("execute: communicating... timeout, interrupting (SIGINT)...");
@@ -197,13 +199,13 @@ TEST_F(Process, WHEN_cancelled_terminal_THEN_2)
 }
 TEST_F(Process, WHEN_cancelled_partial_THEN_2)
 {
-   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1"}),
             cancel_after(250ms, cancellation_type::partial, log_exception<int>("spawn")));
    context.run();
 }
 TEST_F(Process, WHEN_cancelled_total_THEN_2)
 {
-   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1"}),
             cancel_after(250ms, cancellation_type::total, log_exception<int>("spawn")));
    context.run();
 }
