@@ -22,7 +22,7 @@ using namespace std::chrono_literals;
 // =================================================================================================
 
 /// Transform \p lines into a range of \c string_view, splitting at LF. Skip last line if empty.
-auto split(std::string_view lines)
+auto split_lines(std::string_view lines)
 {
    if (lines.ends_with('\n'))
       lines.remove_suffix(1);
@@ -48,7 +48,7 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    }
    catch (const system_error& ec)
    {
-      for (auto line : split(buffer))
+      for (auto line : split_lines(buffer))
          print(line);
 
       if (ec.code() != error::eof)

@@ -36,14 +36,9 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    }
    catch (const system_error& ec)
    {
-      for (auto line : split(buffer))
+      for (auto line : split_lines(buffer))
          print(line);
 
-#if 0
-      if (ec.code() == boost::system::errc::operation_canceled)
-         ;
-      else
-#endif
       if (ec.code() != error::eof)
       {
          std::println("{}: {}", prefix, ec.code().message());
@@ -172,24 +167,40 @@ TEST_F(Process, Interrupt)
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(Process, WHEN_cancelled_terminal_THEN_)
+TEST_F(Process, WHEN_ping_is_cancelled_terminal_THEN_is_terminated)
 {
-   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
-            cancel_after(250ms, cancellation_type::terminal, log_exception<int>("spawn")));
+   auto future = co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+                          cancel_after(250ms, cancellation_type::terminal, as_tuple(use_future)));
    context.run();
+
+   auto [ep, exit_code] = future.get();
+   EXPECT_EQ(exit_code, SIGKILL); // 9
+   EXPECT_FALSE(ep);
 }
-TEST_F(Process, WHEN_cancelled_partial_THEN_)
+
+TEST_F(Process, WHEN_ping_is_cancelled_partial_THEN_exists_with_code_15)
 {
-   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
-            cancel_after(250ms, cancellation_type::partial, log_exception<int>("spawn")));
+   auto future = co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+                          cancel_after(250ms, cancellation_type::partial, as_tuple(use_future)));
    context.run();
+
+   auto [ep, exit_code] = future.get();
+   EXPECT_EQ(exit_code, SIGTERM); // 15
+   EXPECT_FALSE(ep);
 }
-TEST_F(Process, WHEN_cancelled_total_THEN_)
+
+TEST_F(Process, WHEN_ping_is_cancelled_total_THEN_exists_gracefully)
 {
-   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
-            cancel_after(250ms, cancellation_type::total, log_exception<int>("spawn")));
+   auto future = co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+                          cancel_after(250ms, cancellation_type::total, as_tuple(use_future)));
    context.run();
+
+   auto [ep, exit_code] = future.get();
+   EXPECT_EQ(exit_code, 0);
+   EXPECT_FALSE(ep);
 }
+
+// -------------------------------------------------------------------------------------------------
 
 TEST_F(Process, WHEN_cancelled_terminal_THEN_2)
 {

@@ -49,7 +49,7 @@ struct std::formatter<ip::tcp::endpoint> : std::formatter<std::string>
 // =================================================================================================
 
 /// Transform \p lines into a range of \c string_view, splitting at LF. Skip last line if empty.
-inline auto split(std::string_view lines)
+inline auto split_lines(std::string_view lines)
 {
    if (lines.ends_with('\n'))
       lines.remove_suffix(1);
