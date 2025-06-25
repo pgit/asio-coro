@@ -5,6 +5,7 @@
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <filesystem>
@@ -13,155 +14,221 @@
 using namespace boost::asio;
 
 namespace bp = boost::process::v2;
-
-// =================================================================================================
-
-/// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
-/**
- * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
- */
-awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
-{
-   auto print = [&](auto line) { std::println("{}: \x1b[32m{}\x1b[0m", prefix, line); };
-
-   std::string buffer;
-   try
-   {
-      for (;;)
-      {
-         auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
-         print(std::string_view(buffer).substr(0, n - 1));
-         buffer.erase(0, n);
-      }
-   }
-   catch (const system_error& ec)
-   {
-      for (auto line : split_lines(buffer))
-         print(line);
-
-      if (ec.code() != error::eof)
-      {
-         std::println("{}: {}", prefix, ec.code().message());
-         throw;
-      }
-   }
-
-   co_return;
-}
-
-awaitable<void> log(readable_pipe& out, readable_pipe& err)
-{
-   co_await (log("STDOUT", out) && log("STDERR", err));
-}
-
-awaitable<void> sleep(steady_timer::duration timeout)
-{
-   steady_timer timer(co_await this_coro::executor);
-   timer.expires_after(timeout);
-   co_await timer.async_wait();
-}
-
-constexpr auto forever = steady_timer::duration::max();
-
-// -------------------------------------------------------------------------------------------------
-
-// https://www.boost.org/doc/libs/1_80_0/doc/html/boost_process/v2.html
-awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
-{
-   std::println("execute: {} {}", path.generic_string(), join(args, " "));
-
-   // We support all three types of cancellation, total, partial and terminal.
-   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-   auto cs = (co_await this_coro::cancellation_state);
-
-   auto executor = co_await this_coro::executor;
-   readable_pipe out(executor), err(executor);
-   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
-
-   // signal_set signals(executor, SIGINT, SIGTERM);
-   // signals.async_wait([&](error_code error, auto signum)
-   //                    { std::println(" INTERRUPTED (signal {})", signum); });
-
-   std::println("execute: communicating...");
-#if 1
-   co_spawn(executor, log(out, err), detached);
-   auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
-   if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
-      co_return 9;
-   co_return rc;
-#else
-   auto result = co_await co_spawn(executor, log(out, err), as_tuple);
-   std::println("execute: cancellation state: {}", std::to_underlying(cs.cancelled()));
-   if (cs.cancelled() != cancellation_type::none)
-   // if (std::get<0>(result))
-   {
-      (co_await this_coro::cancellation_state).clear();
-      std::println("execute: communicating... timeout, interrupting (SIGINT)...");
-      child.interrupt();
-      auto result = co_await (log(out, err) || sleep(1s));
-      if (result.index() == 1)
-      {
-         std::println("execute: communicating... timeout, requesting exit (SIGTERM)...");
-         child.request_exit();
-         result = co_await (log(out, err) || sleep(1s));
-         if (result.index() == 1)
-         {
-            std::println("execute: communicating... timeout, terminating (SIGKILL)...");
-            child.terminate();
-         }
-      }
-   }
-#endif
-   std::println("execute: communicating... done");
-
-   std::println("execute: waiting for process...");
-   co_await child.async_wait();
-   std::println("execute: waiting for process... done, exit code {}", child.exit_code());
-   co_return child.exit_code();
-}
+using namespace ::testing;
 
 // =================================================================================================
 
 class Process : public testing::Test
 {
 protected:
-   void spawn_execute(std::filesystem::path path, std::vector<std::string> args = {},
-                      std::optional<steady_timer::duration> timeout = 5s)
+   /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
+   /**
+    * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
+    */
+   awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
-      if (timeout)
-         co_spawn(context, execute(std::move(path), std::move(args)),
-                  cancel_after(*timeout, log_exception<int>("spawn")));
-      else
-         co_spawn(context, execute(std::move(path), std::move(args)), log_exception<int>("spawn"));
+      auto print = [&](auto line)
+      {
+         std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
+         on_log(line);
+      };
+
+      std::string buffer;
+      try
+      {
+         for (;;)
+         {
+            auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
+            print(std::string_view(buffer).substr(0, n - 1));
+            buffer.erase(0, n);
+         }
+      }
+      catch (const system_error& ec)
+      {
+         for (auto line : split_lines(buffer))
+         {
+
+            print(line);
+         }
+
+         if (ec.code() != error::eof)
+         {
+            std::println("{}: {}", prefix, ec.code().message());
+            throw;
+         }
+      }
    }
 
+   MOCK_METHOD(void, on_log, (std::string_view line), ());
+
+   // ----------------------------------------------------------------------------------------------
+
+   awaitable<void> log(readable_pipe& out, readable_pipe& err)
+   {
+      co_await (log("STDOUT", out) && log("STDERR", err));
+   }
+
+   awaitable<void> sleep(steady_timer::duration timeout)
+   {
+      steady_timer timer(co_await this_coro::executor);
+      timer.expires_after(timeout);
+      co_await timer.async_wait();
+   }
+
+   // ----------------------------------------------------------------------------------------------
+
+   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
+   {
+      std::println("execute: {} {}", path.generic_string(), join(args, " "));
+
+      //
+      // Create pipes for STDOUT and STDERR and start the child process.
+      //
+      auto executor = co_await this_coro::executor;
+      readable_pipe out(executor), err(executor);
+      bp::process child(executor, bp::filesystem::path(path), args,
+                        bp::process_stdio{{}, out, err});
+
+      //
+      // We support all three types of cancellation, total, partial and terminal.
+      // Note that total cancellation implies partial and terminal cancellation.
+      //
+      // We have to explicitly enable all three types of cancellation here, as there is no way
+      // no way to deduce the set of supported cancellation types from the inner async operation
+      // (bp::async_execute). The default is to support terminal cancellation only.
+      //
+      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+      auto cs = (co_await this_coro::cancellation_state);
+
+
+#if 0
+      auto coro = (bp::async_execute(std::move(child), use_awaitable) && log(out, err));
+      auto [ec, rc] = co_await co_spawn(context, std::move(coro), as_tuple);
+#else
+      // co_spawn(executor, log(out, err), detached);
+      bool finished = false;
+      co_spawn(executor, log(out, err), [&](std::exception_ptr) { finished = true; });
+      auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
+#endif
+      std::println("execute: finished, cancelled={}", std::to_underlying(cs.cancelled()));
+      if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
+      {
+         rc = 9;
+         out.close();
+         err.close();
+      }
+      co_await this_coro::reset_cancellation_state();
+      while (!finished)
+      {
+         std::println("waiting for log() to finish....");
+         co_await post(executor);
+      }
+      co_return rc;
+   }
+
+   awaitable<int> execute2(std::filesystem::path path, std::vector<std::string> args)
+   {
+      std::println("execute: {} {}", path.generic_string(), join(args, " "));
+
+      auto executor = co_await this_coro::executor;
+      readable_pipe out(executor), err(executor);
+      bp::process child(executor, bp::filesystem::path(path), args,
+                        bp::process_stdio{{}, out, err});
+
+      //
+      // We support all three types of cancellation, total, partial and terminal.
+      // Note that total cancellation implies partial and terminal cancellation.
+      //
+      // We have to explicitly enable all three types of cancellation here, as there is no way
+      // no way to deduce the set of supported cancellation types from the inner async operation
+      // (bp::async_execute). The default is to support terminal cancellation only.
+      //
+      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+      auto cs = (co_await this_coro::cancellation_state);
+
+      std::println("execute: communicating...");
+      auto result = co_await co_spawn(executor, log(out, err), as_tuple);
+      std::println("execute: cancellation state: {}", std::to_underlying(cs.cancelled()));
+      if (cs.cancelled() != cancellation_type::none)
+      // if (std::get<0>(result))
+      {
+         (co_await this_coro::cancellation_state).clear();
+         std::println("execute: communicating... timeout, interrupting (SIGINT)...");
+         child.interrupt();
+         auto result = co_await (log(out, err) || sleep(1s));
+         if (result.index() == 1)
+         {
+            std::println("execute: communicating... timeout, requesting exit (SIGTERM)...");
+            child.request_exit();
+            result = co_await (log(out, err) || sleep(1s));
+            if (result.index() == 1)
+            {
+               std::println("execute: communicating... timeout, terminating (SIGKILL)...");
+               child.terminate();
+            }
+         }
+      }
+      std::println("execute: communicating... done");
+
+      std::println("execute: waiting for process...");
+      co_await child.async_wait();
+      std::println("execute: waiting for process... done, exit code {}", child.exit_code());
+      co_return child.exit_code();
+   }
+
+public:
+   constexpr auto token()
+   {
+      return [this](std::exception_ptr ep, int exit_code)
+      {
+         std::println("spawn: {}, exit_code={}", what(ep), exit_code);
+         if (ep)
+            on_error(code(ep));
+         on_exit(exit_code);
+      };
+   }
+
+   MOCK_METHOD(void, on_error, (error_code ec), ());
+   MOCK_METHOD(void, on_exit, (int exit_code), ());
+
+protected:
    io_context context;
+   any_io_executor executor{context.get_executor()};
 };
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(Process, Ping)
+TEST_F(Process, WHEN_ping_is_started_THEN_completes_gracefully)
 {
-   spawn_execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"});
+   co_spawn(executor, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}), token());
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt")));
+   EXPECT_CALL(*this, on_exit(0));
    context.run();
 }
 
-TEST_F(Process, PingMulti)
+TEST_F(Process, WHEN_multiple_pings_are_started_THEN_all_of_them_complete_gracefully)
 {
-   for (size_t i = 0; i < 10; ++i)
-      spawn_execute("/usr/bin/ping", {"::1", "-c", "2", "-i", "0.1"});
+   constexpr size_t N = 10;
+   for (size_t i = 0; i < N; ++i)
+      co_spawn(executor, execute("/usr/bin/ping", {"::1", "-c", "2", "-i", "0.1"}), token());
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(N);
+   EXPECT_CALL(*this, on_exit(0)).Times(N);
    context.run();
 }
 
+//
+// Starting a partially interactive program like 'top' also works, but that looks a little weird.
+// Also, it won't finish on it's own, so we have to cancel it after a timeout. For those reasons,
+// this test is disabled.
+//
 TEST_F(Process, DISABLED_Top)
 {
-   spawn_execute("/usr/bin/top", {}, 10s);
-   context.run();
-}
-
-TEST_F(Process, Interrupt)
-{
-   spawn_execute("/usr/bin/ping", {"127.0.0.1", "-i", "0.1"}, 250ms);
+   co_spawn(context, execute("/usr/bin/top", {}), cancel_after(10s, token()));
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_exit(SIGKILL)); // 9
    context.run();
 }
 
@@ -169,82 +236,144 @@ TEST_F(Process, Interrupt)
 
 TEST_F(Process, WHEN_ping_is_cancelled_terminal_THEN_is_terminated)
 {
-   auto future = co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
-                          cancel_after(250ms, cancellation_type::terminal, as_tuple(use_future)));
-   context.run();
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            cancel_after(250ms, cancellation_type::terminal, token()));
 
-   auto [ep, exit_code] = future.get();
-   EXPECT_EQ(exit_code, SIGKILL); // 9
-   EXPECT_FALSE(ep);
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("PING")));
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
+   EXPECT_CALL(*this, on_exit(SIGKILL)); // 9
+   context.run();
 }
 
 TEST_F(Process, WHEN_ping_is_cancelled_partial_THEN_exists_with_code_15)
 {
-   auto future = co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
-                          cancel_after(250ms, cancellation_type::partial, as_tuple(use_future)));
-   context.run();
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            cancel_after(250ms, cancellation_type::partial, token()));
 
-   auto [ep, exit_code] = future.get();
-   EXPECT_EQ(exit_code, SIGTERM); // 15
-   EXPECT_FALSE(ep);
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_exit(SIGTERM)); // 15
+   context.run();
 }
 
 TEST_F(Process, WHEN_ping_is_cancelled_total_THEN_exists_gracefully)
 {
-   auto future = co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
-                          cancel_after(250ms, cancellation_type::total, as_tuple(use_future)));
-   context.run();
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            cancel_after(250ms, cancellation_type::total, token()));
 
-   auto [ep, exit_code] = future.get();
-   EXPECT_EQ(exit_code, 0);
-   EXPECT_FALSE(ep);
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
+   context.run();
 }
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(Process, WHEN_cancelled_terminal_THEN_2)
+//
+// Usually it is easiest to rely on existing completion token adapters like cancel_after(), but
+// it is also possible to use the underlying signal/slot mechanism directly. To assign a
+// cancellation slot to a handler, use bind_cancellation_slot().
+//
+TEST_F(Process, WHEN_custom_cancellation_slot_is_emitted_THEN_process_is_cancelled)
+{
+   cancellation_signal signal;
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+            bind_cancellation_slot(signal.slot(), token()));
+
+   steady_timer timer(executor);
+   timer.expires_after(250ms);
+   timer.async_wait([&](error_code) { signal.emit(cancellation_type::total); });
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
+   context.run();
+}
+
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(Process, WHEN_cancelled_terminal_THEN_exits_with_code_9)
+{
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1", "-t1"}),
+            cancel_after(250ms, cancellation_type::terminal, token()));
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(0);
+   EXPECT_CALL(*this, on_exit(SIGKILL));
+   context.run();
+}
+
+TEST_F(Process, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
+{
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1", "-t1"}),
+            cancel_after(250ms, token()));
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_exit(SIGKILL));
+   context.run();
+}
+
+TEST_F(Process, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefully)
 {
    co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
-            cancel_after(250ms, cancellation_type::terminal, log_exception<int>("spawn")));
+            cancel_after(250ms, cancellation_type::partial, token()));
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGTERM"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
    context.run();
 }
-TEST_F(Process, WHEN_cancelled_partial_THEN_2)
+
+TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
 {
-   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1"}),
-            cancel_after(250ms, cancellation_type::partial, log_exception<int>("spawn")));
-   context.run();
-}
-TEST_F(Process, WHEN_cancelled_total_THEN_2)
-{
-   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1"}),
-            cancel_after(250ms, cancellation_type::total, log_exception<int>("spawn")));
+   co_spawn(context, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+            cancel_after(250ms, cancellation_type::total, token()));
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGINT"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
    context.run();
 }
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(Process, WHEN_timeout_THEN_is_interrupted)
+TEST_F(Process, WHEN_cancelled_total_and_signals_are_ignored_THEN_escalates)
 {
-   spawn_execute("/usr/bin/bash", {"-c", "echo Hello!"}, 250ms);
+   co_spawn(context, execute2("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1", "-t1"}),
+            cancel_after(250ms, token()));
+
+   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGINT"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGTERM"))).Times(1);
+   EXPECT_CALL(*this, on_exit(9));
    context.run();
 }
 
-TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout)
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(Process, WHEN_bash_is_killed_THEN_exits_with_code_9)
 {
-   spawn_execute("build/src/ignore_sigint", {}, 250ms);
+   auto coro =
+      execute("/usr/bin/bash",
+              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10; echo DONE"});
+   co_spawn(context, std::move(coro), cancel_after(250ms, token()));
+   EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
+   EXPECT_CALL(*this, on_exit(9));
    context.run();
 }
 
-TEST_F(Process, WHEN_ignores_sigint_THEN_runs_into_timeout_unbuffered)
+TEST_F(Process, WHEN_bash_ingores_signals_THEN_sleep_finishes)
 {
-   spawn_execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}, 250ms);
-   ::run(context);
-}
-
-TEST_F(Process, WHEN_ignores_all_signals_THEN_runs_into_timeout)
-{
-   spawn_execute("/usr/bin/bash",
-                 {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10"}, 250ms);
+   auto coro =
+      execute("/usr/bin/bash",
+              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 1; echo DONE"});
+   co_spawn(context, std::move(coro), cancel_after(250ms, cancellation_type::partial, token()));
+   EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGNAL"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("DONE"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
    context.run();
 }
 
@@ -252,19 +381,23 @@ TEST_F(Process, WHEN_ignores_all_signals_THEN_runs_into_timeout)
 
 TEST_F(Process, WHEN_no_newline_at_end_of_output_THEN_prints_line)
 {
-   spawn_execute("/usr/bin/echo", {"-n", "There is no newline at the end of this"});
+   co_spawn(context, execute("/usr/bin/echo", {"-n", "No newline at the end of this"}), token());
+   EXPECT_CALL(*this, on_log("No newline at the end of this"));
+   EXPECT_CALL(*this, on_exit(0));
    ::run(context);
 }
 
 TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 {
-   spawn_execute("/usr/bin/false");
+   co_spawn(context, execute("/usr/bin/false", {}), token());
+   EXPECT_CALL(*this, on_exit(1));
    ::run(context);
 }
 
 TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_noch_such_file_or_directory)
 {
-   spawn_execute("/path/does/not/exist");
+   co_spawn(context, execute("/path/does/not/exist", {}), token());
+   EXPECT_CALL(*this, on_error(_));
    ::run(context);
 }
 

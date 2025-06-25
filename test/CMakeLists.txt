@@ -3,7 +3,7 @@ target_link_libraries(GTest::GTest INTERFACE gtest_main)
 
 file(GLOB SRC_FILES test_*.cpp)
 add_executable(test_all ${SRC_FILES} utils.cpp)
-target_link_libraries(test_all PRIVATE GTest::GTest)
+target_link_libraries(test_all PRIVATE GTest::GTest GTest::gmock)
 
 target_include_directories(test_all PUBLIC "../src")
 
