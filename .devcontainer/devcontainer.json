@@ -23,7 +23,21 @@
 				"lldb.showDisassembly": "never",
 				"[cpp]": {
 					"editor.defaultFormatter": "xaver.clang-format"
-				}
+				},
+				"testMate.cpp.test.advancedExecutables": [
+					{
+						"pattern": "build/test/*",
+						"runTask": {
+							"before": [
+								"CMake Build (custom)"
+							]
+						},
+						"env": {
+							"TSAN_OPTIONS": "halt_on_error=1"
+						},
+						"cwd": "${workspaceDirectory}"
+					}
+				]
 			},
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
