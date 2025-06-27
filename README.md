@@ -41,3 +41,15 @@ A few examples are implement as Google Test units `test/test_*.cpp`. This way, w
 ## Manual Testing
 
 Example: 5 clients, each sending 512 MiB of data to a echo server listening on `[::1]:55555`:
+
+# Resources
+
+## Examples
+* [C++20 Examples](https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/examples/cpp20_examples.html)
+
+
+## YT Watchlist
+* [Cancellations in Asio: a tale of coroutines and timeouts - Rubén Pérez Hidalgo](https://www.youtube.com/watch?v=80Zs0WbXAMY)
+* [Asynchrony with ASIO and coroutines - Andrzej Krzemieński - code::dive 2022](https://www.youtube.com/watch?v=0i_pFZSijZc&t=2789s)
+* [Talking Async Ep1: Why C++20 is the Awesomest Language for Network Programming](https://www.youtube.com/watch?v=icgnqFM-aY4&t=2477s)
+* [Talking Async Ep2: Cancellation in depth](https://www.youtube.com/watch?v=hHk5OXlKVFg&t=3718s)
