@@ -98,9 +98,14 @@ int main(int argc, char** argv)
    io_context context;
    auto task =
       execute("/usr/bin/ping", {argc > 1 ? argv[1] : "::1", "-v", "-c", "5", "-i", "0.1"}, 250ms);
+ 
+   //
+   // To retrieve the exit code, we use a future that is collected after the IO context has
+   // finished.
+   //
    auto future = co_spawn(context, std::move(task), use_future);
    context.run();
-   return future.get();
+   return future.get();  // may throw -- use as_tuple(use_future) if you don't want that
 }
 
 // =================================================================================================

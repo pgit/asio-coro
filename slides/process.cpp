@@ -80,9 +80,9 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
-   auto context = co_await this_coro::executor;
-   readable_pipe out(context), err(context);
-   bp::process child(context, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
+   auto executor = co_await this_coro::executor;
+   readable_pipe out(executor), err(executor);
+   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
    std::println("execute: communicating...");
    auto result = co_await (log(out, err) || sleep(timeout));

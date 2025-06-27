@@ -1,16 +1,4 @@
 {
-   "testMate.cpp.test.advancedExecutables": [
-      {
-         "pattern": "build/test/*",
-         "runTask": {
-            "before": [
-               "CMake Build (custom)"
-            ]
-         },
-         "env": {"TSAN_OPTIONS": "halt_on_error=1"},
-         "cwd": "${workspaceDirectory}"
-      }
-   ],
    "testMate.cpp.test.parallelExecutionLimit": 8,
    "testMate.cpp.test.parallelExecutionOfExecutableLimit": 8
 }

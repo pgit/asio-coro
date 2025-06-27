@@ -63,7 +63,7 @@ private:
 
 int main(int argc, char* argv[])
 {
-   boost::asio::io_context io_context;
-   server server(io_context, {tcp::v6(), 55555});
-   io_context.run();
+   boost::asio::io_context context;
+   server server(context, {tcp::v6(), 55555});
+   context.run();
 }
