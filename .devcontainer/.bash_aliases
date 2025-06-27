@@ -1,0 +1,5 @@
+alias gga="git log --graph --oneline --decorate --all"
+alias gs="git status"
+alias gd="git diff"
+alias gds="git diff --staged"
+alias tma="tmux attach"

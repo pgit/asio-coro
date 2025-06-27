@@ -32,7 +32,7 @@ RUN cd /home/${USERNAME} && \
 #
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get -y upgrade && \
-    apt-get -y install iputils-ping && \
+    apt-get -y install iputils-ping tmux && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -60,5 +60,13 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
     && touch /commandhistory/.bash_history \
     && chown -R $USERNAME /commandhistory \
     && echo "$SNIPPET" >> "/home/$USERNAME/.bashrc"
+
+#
+# Copy .tmux.conf and .bash_aliases from .devcontainer to user's home
+#
+ARG USERNAME=vscode
+COPY .tmux.conf /home/${USERNAME}/.tmux.conf
+COPY .bash_aliases /home/${USERNAME}/.bash_aliases
+RUN chown $USERNAME:$USERNAME /home/${USERNAME}/.tmux.conf /home/${USERNAME}/.bash_aliases
 
 SHELL ["/bin/bash", "-c"]
