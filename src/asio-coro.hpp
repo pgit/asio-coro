@@ -105,3 +105,16 @@ constexpr auto log_exception(std::string prefix)
 }
 
 // =================================================================================================
+
+namespace std
+{
+inline void PrintTo(const std::exception_ptr& eptr, std::ostream* os) { *os << what(eptr); }
+} // namespace std
+
+template <typename F>
+concept TestConcept = requires(F f, tcp::socket sock) {
+   { f(std::move(sock)) } -> std::same_as<awaitable<void>>;
+};
+
+
+// =================================================================================================

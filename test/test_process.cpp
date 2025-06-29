@@ -1,6 +1,9 @@
 #include "asio-coro.hpp"
 #include "utils.hpp"
 
+#include <boost/asio/experimental/promise.hpp>
+#include <boost/asio/experimental/use_promise.hpp>
+
 #include <boost/process/v2/execute.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
@@ -24,6 +27,8 @@ protected:
    /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
    /**
     * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
+    * On error while reading from the pipe, any lines in the remaining buffer are printed,
+    * including the trailing incomplete line, if any.
     */
    awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
@@ -47,12 +52,7 @@ protected:
       {
          for (auto line : split_lines(buffer))
             print(line);
-
-         if (ec.code() != error::eof)
-         {
-            std::println("{}: {}", prefix, ec.code().message());
-            throw;
-         }
+         throw;
       }
    }
 
@@ -99,16 +99,15 @@ protected:
 
       //
       // Reading from the pipe is done as a background task, so it is not affected by the
-      // cancellation signal immediatelly. This makes sense as bp::async_execute() will wait
-      // for the process anyway.
+      // cancellation signal immediatelly and we can read the remaining output. This is like
+      // a parallel group that forwards cancellation only to one of the tasks.
       //
       // However, this introduces a problem with structured concurrency: The spawned thread of
       // execution may outlive this coroutine if we don't join it properly.
       //
-      // FIXME: find a better way to do this
+      // Solution: experimental::use_promise.
       //
-      bool finished = false;
-      co_spawn(executor, log(out, err), [&](std::exception_ptr) { finished = true; });
+      auto promise = co_spawn(executor, log(out, err), as_tuple(experimental::use_promise));
       auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
 
       std::println("execute: finished, cancelled={}", cs.cancelled());
@@ -120,11 +119,9 @@ protected:
       }
 
       co_await this_coro::reset_cancellation_state();
-      while (!finished)
-      {
-         std::println("waiting for log() to finish....");
-         co_await post(executor);
-      }
+      std::println("execute: waiting for remaining output...");
+      auto log_result = co_await std::move(promise);
+      std::println("execute: waiting for remaining output... {}", what(std::get<0>(log_result)));
       co_return rc;
    }
 
@@ -199,7 +196,7 @@ private:
 
 protected:
    any_io_executor executor{context.get_executor()};
-   void run() { ::run(context); }
+   void run() { context.run();}
 };
 
 // -------------------------------------------------------------------------------------------------

@@ -33,6 +33,11 @@ auto split_lines(std::string_view lines)
 }
 
 /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
+/**
+   * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
+   * On error while reading from the pipe, any lines in the remaining buffer are printed,
+   * including the trailing incomplete line, if any.
+   */
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {
    auto print = [&](auto line) { std::println("{}: \x1b[32m{}\x1b[0m", prefix, line); };
@@ -51,12 +56,6 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
       for (auto line : split_lines(buffer))
          print(line);
-
-      if (ec.code() != error::eof)
-      {
-         std::println("log: {}", ec.code().message());
-         throw;
-      }
    }
 }
 
@@ -120,20 +119,6 @@ awaitable<void> execute(std::filesystem::path path, std::vector<std::string> arg
                      bp::process_stdio{{}, out, err});
 
    co_await (log("STDOUT", out) && log("STDERR", err));
-   co_await child.async_wait();
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// For slides only: STDOUT only, no timeout
-awaitable<void> execute_stdout(std::filesystem::path path, std::vector<std::string> args = {})
-{
-   auto executor = co_await this_coro::executor;
-   readable_pipe out(executor);
-   bp::process child(executor, bp::filesystem::path(path), std::move(args),
-                     bp::process_stdio{.out = out});
-
-   co_await log("STDOUT", out);
    co_await child.async_wait();
 }
 

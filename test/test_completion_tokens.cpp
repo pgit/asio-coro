@@ -219,7 +219,7 @@ static_assert(std::is_same_v<decltype(error_and_size(use_future)), std::future<s
 
 // -------------------------------------------------------------------------------------------------
 
-template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t)) CompletionToken>
+template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t, int)) CompletionToken>
 auto error_and_size_and_int(CompletionToken&& token)
 {
    return boost::asio::async_initiate<CompletionToken, void(error_code, size_t, int)>(

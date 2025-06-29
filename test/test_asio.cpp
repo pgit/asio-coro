@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include <latch>
 #include <print>
 #include <thread>
 
@@ -601,7 +600,6 @@ TEST(Threads, Strand)
 
    size_t counter = 0;
    constexpr size_t N = 100;
-   // std::latch latch(N);
    for (size_t i = 0; i < N; ++i)
       co_spawn(
          executor,

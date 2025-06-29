@@ -4,6 +4,8 @@
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 
+#include <filesystem>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -38,12 +40,37 @@ TEST_F(Fixture, WHEN_spawn_process_THEN_finishes_eventually)
    EXPECT_EQ(future.get(), 0);
 }
 
+TEST_F(Fixture, WHEN_process_suceeds_THEN_returns_zero_exit_code)
+{
+   bp::process child(executor, "/usr/bin/true", {});
+   auto future = child.async_wait(use_future);
+   run();
+   EXPECT_EQ(future.get(), 0);
+}
+
+TEST_F(Fixture, WHEN_process_fails_THEN_returns_nonzero_exit_code)
+{
+   bp::process child(executor, "/usr/bin/false", {});
+   auto future = child.async_wait(use_future);
+   run();
+   EXPECT_NE(future.get(), 0);
+}
+
 TEST_F(Fixture, WHEN_process_is_cancelled_THEN_exception_is_thrown)
 {
    bp::process child(executor, "/usr/bin/sleep", {"10"});
    auto future = child.async_wait(cancel_after(50ms, use_future));
    run();
    EXPECT_THROW(future.get(), system_error);
+}
+
+TEST_F(Fixture, WHEN_process_is_cancelled_THEN_error_is_reported_as_tuple)
+{
+   bp::process child(executor, "/usr/bin/sleep", {"10"});
+   auto future = child.async_wait(cancel_after(50ms, as_tuple(use_future)));
+   run();
+   auto [ec, exit_code] = future.get();
+   EXPECT_EQ(ec, boost::system::errc::operation_canceled);
 }
 
 // =================================================================================================
