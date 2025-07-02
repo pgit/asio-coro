@@ -189,72 +189,51 @@ protected:
       steady_timer timer(executor);
       timer.expires_at(steady_timer::time_point::max());
       auto [ec] = co_await timer.async_wait(as_tuple);
+      int status = 0;
 
-      std::println("execute: cancellation state: {} / {}", what(ec), cs.cancelled());
-      if ((cs.cancelled() & cancellation_type::total) != cancellation_type::none)
+      //
+      // Reset cancellation state if needed -- otherwise, the next co_await throws.
+      //
+      std::println("execute: {} / {}", what(ec), cs.cancelled());
+      auto cancelled = cs.cancelled();
+      if (cancelled != cancellation_type::none)
+         co_await this_coro::reset_cancellation_state();
+
+      //
+      // SIGINT --> SIGTERM --> SIGKILL
+      //
+      if ((cancelled & cancellation_type::total) != cancellation_type::none)
       {
          std::println("execute: interrupting...");
          child.interrupt();
-         co_await this_coro::reset_cancellation_state();
-         auto [ec, status] = co_await child.async_wait(cancel_after(1s, as_tuple));
-         std::println("execute: cancellation state: {} / {}", what(ec), cs.cancelled());
-         if (ec == boost::system::errc::operation_canceled)
-         {
-            std::println("execute: requesting exit...");
-            child.request_exit();
-            co_await this_coro::reset_cancellation_state();
-            auto [ec, status] = co_await child.async_wait(cancel_after(1s, as_tuple));
-            if (ec == boost::system::errc::operation_canceled)
-            {
-               std::println("execute: terminating...");
-               child.terminate();
-               co_await child.async_wait();
-               co_return 9;
-            }
-         }
-      }
-      else if ((cs.cancelled() & cancellation_type::partial) != cancellation_type::none)
-      {
-         {
-            co_await this_coro::reset_cancellation_state();
-            std::println("execute: requesting exit...");
-            child.request_exit();
-            auto [ec, status] = co_await child.async_wait(cancel_after(1s, as_tuple));
-            std::println("execute: cancellation state: {}", cs.cancelled());
-            if (ec == boost::system::errc::operation_canceled)
-            {
-               std::println("execute: terminating...");
-               child.terminate();
-               co_await child.async_wait();
-               co_return 9;
-            }
-         }
-      }
-      else if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
-      {
-         {
-            {
-               co_await this_coro::reset_cancellation_state();
-               std::println("execute: terminating...");
-               child.terminate();
-               co_await child.async_wait();
-               co_return 9;
-            }
-         }
+         std::tie(ec, status) = co_await child.async_wait(cancel_after(1s, as_tuple));
       }
 
-      std::println("execute: waiting for process...");
-      co_await child.async_wait();
-      if (false)
+      if (ec == boost::system::errc::operation_canceled ||
+          (cancelled & cancellation_type::partial) != cancellation_type::none)
       {
-         error_code ignore;
-         std::ignore = out.close(ignore);
-         std::ignore = err.close(ignore);
+         std::println("execute: requesting exit...");
+         child.request_exit();
+         std::tie(ec, status) = co_await child.async_wait(cancel_after(1s, as_tuple));
       }
+
+      if (ec == boost::system::errc::operation_canceled ||
+          (cancelled & cancellation_type::terminal) != cancellation_type::none)
+      {
+         std::println("execute: terminating...");
+         child.terminate();
+         co_await child.async_wait(as_tuple);
+         co_return 9;
+      }
+
+      //
+      // Wait for process to finish.
+      //
+      std::println("execute: waiting for process...");
+      co_await child.async_wait(as_tuple);
       std::println("execute: waiting for process... done, exit code {}", child.exit_code());
 
       std::println("execute: waiting for remaining output...");
-      co_await this_coro::reset_cancellation_state();
       co_await std::move(promise);
       std::println("execute: waiting for remaining output... done");
 
