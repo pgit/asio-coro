@@ -1,5 +1,4 @@
 #include "asio-coro.hpp"
-#include "utils.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
@@ -11,7 +10,6 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <filesystem>
 #include <print>
 
 using namespace boost::asio;
@@ -46,12 +44,15 @@ protected:
             auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
             print(std::string_view(buffer).substr(0, n - 1));
             buffer.erase(0, n);
+            co_await sleep(50ms);
          }
       }
       catch (const system_error& ec)
       {
          for (auto line : split_lines(buffer))
             print(line);
+
+         std::println("{}: {}", prefix, ec.code().message());
          throw;
       }
    }
@@ -62,11 +63,19 @@ protected:
 
    awaitable<void> log(readable_pipe& out, readable_pipe& err)
    {
+      //
+      // TODO: This seems to work, but may not be what you want in cancellation scenarios:
+      //       On a signal, STDERR might be closed early, while there is still stuff to read
+      //       from STDOUT. But because of the &&, reading from STDOUT will be cancelled.
+      //
+      // This actually wants to be two separate tasks.
+      //
       co_await (log("STDOUT", out) && log("STDERR", err));
    }
 
    awaitable<void> sleep(steady_timer::duration timeout)
    {
+      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
       steady_timer timer(co_await this_coro::executor);
       timer.expires_after(timeout);
       co_await timer.async_wait();
@@ -74,7 +83,7 @@ protected:
 
    // ----------------------------------------------------------------------------------------------
 
-   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
+   awaitable<int> execute(boost::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -99,7 +108,7 @@ protected:
 
       //
       // Reading from the pipe is done as a background task, so it is not affected by the
-      // cancellation signal immediatelly and we can read the remaining output. This is like
+      // cancellation signal immediately and we can read the remaining output. This is like
       // a parallel group that forwards cancellation only to one of the tasks.
       //
       // However, this introduces a problem with structured concurrency: The spawned thread of
@@ -107,25 +116,42 @@ protected:
       //
       // Solution: experimental::use_promise.
       //
-      auto promise = co_spawn(executor, log(out, err), as_tuple(experimental::use_promise));
+#define USE_WAIT_FOR_ALL
+#if defined(USE_WAIT_FOR_ALL)
+      auto group =
+         experimental::make_parallel_group(co_spawn(executor, log("STDOUT", out), as_tuple),
+                                           co_spawn(executor, log("STDERR", err), as_tuple));
+      auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
+#else
+      auto p1 = co_spawn(executor, log("STDOUT", out), as_tuple(experimental::use_promise));
+      auto p2 = co_spawn(executor, log("STDERR", err), as_tuple(experimental::use_promise));
+#endif
       auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
 
-      std::println("execute: finished, cancelled={}", cs.cancelled());
+      std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), rc);
       if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
       {
-         rc = 9;
+         rc = SIGKILL; // work around https://github.com/boostorg/process/issues/503
          out.close();
          err.close();
       }
 
       co_await this_coro::reset_cancellation_state();
       std::println("execute: waiting for remaining output...");
-      auto log_result = co_await std::move(promise);
-      std::println("execute: waiting for remaining output... {}", what(std::get<0>(log_result)));
+#if defined(USE_WAIT_FOR_ALL)
+      co_await std::move(promise);
+#else
+      co_await std::move(p1);
+      co_await std::move(p2);
+#endif
+      std::println("execute: waiting for remaining output... done");
+      // std::println("execute: waiting for remaining output... {}", what(std::get<0>(log_result)));
       co_return rc;
    }
 
-   awaitable<int> execute2(std::filesystem::path path, std::vector<std::string> args)
+   // ----------------------------------------------------------------------------------------------
+
+   awaitable<int> execute2(boost::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -143,35 +169,95 @@ protected:
       // (bp::async_execute). The default is to support terminal cancellation only.
       //
       co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-      auto cs = (co_await this_coro::cancellation_state);
+      auto cs = co_await this_coro::cancellation_state;
 
-      std::println("execute: communicating...");
-      auto result = co_await co_spawn(executor, log(out, err), as_tuple);
-      std::println("execute: cancellation state: {}", cs.cancelled());
-      if (cs.cancelled() != cancellation_type::none)
-      // if (std::get<0>(result))
+      //
+      // Start logging in background. We cannot use && here, as STDOUT and STDERR might be closed
+      // independently of each other and we do want to continue reading from the other. However,
+      // we can use a parallel group for this like operator&& does, but using the wait_for_all()
+      // condition instead of wait_for_one_error().
+      //
+      auto group =
+         experimental::make_parallel_group(co_spawn(executor, log("STDOUT", out), as_tuple),
+                                           co_spawn(executor, log("STDERR", err), as_tuple));
+      auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
+
+      //
+      // This is a little awkward, but a very ASIO-ish thing to do: Use a timer for notification
+      // purposes. It seems to be the easiest way to wait for cancellation signals in a coroutine.
+      //
+      steady_timer timer(executor);
+      timer.expires_at(steady_timer::time_point::max());
+      auto [ec] = co_await timer.async_wait(as_tuple);
+
+      std::println("execute: cancellation state: {} / {}", what(ec), cs.cancelled());
+      if ((cs.cancelled() & cancellation_type::total) != cancellation_type::none)
       {
-         (co_await this_coro::cancellation_state).clear();
-         std::println("execute: communicating... timeout, interrupting (SIGINT)...");
+         std::println("execute: interrupting...");
          child.interrupt();
-         auto result = co_await (log(out, err) || sleep(1s));
-         if (result.index() == 1)
+         co_await this_coro::reset_cancellation_state();
+         auto [ec, status] = co_await child.async_wait(cancel_after(1s, as_tuple));
+         std::println("execute: cancellation state: {} / {}", what(ec), cs.cancelled());
+         if (ec == boost::system::errc::operation_canceled)
          {
-            std::println("execute: communicating... timeout, requesting exit (SIGTERM)...");
+            std::println("execute: requesting exit...");
             child.request_exit();
-            result = co_await (log(out, err) || sleep(1s));
-            if (result.index() == 1)
+            co_await this_coro::reset_cancellation_state();
+            auto [ec, status] = co_await child.async_wait(cancel_after(1s, as_tuple));
+            if (ec == boost::system::errc::operation_canceled)
             {
-               std::println("execute: communicating... timeout, terminating (SIGKILL)...");
+               std::println("execute: terminating...");
                child.terminate();
+               co_await child.async_wait();
+               co_return 9;
             }
          }
       }
-      std::println("execute: communicating... done");
+      else if ((cs.cancelled() & cancellation_type::partial) != cancellation_type::none)
+      {
+         {
+            co_await this_coro::reset_cancellation_state();
+            std::println("execute: requesting exit...");
+            child.request_exit();
+            auto [ec, status] = co_await child.async_wait(cancel_after(1s, as_tuple));
+            std::println("execute: cancellation state: {}", cs.cancelled());
+            if (ec == boost::system::errc::operation_canceled)
+            {
+               std::println("execute: terminating...");
+               child.terminate();
+               co_await child.async_wait();
+               co_return 9;
+            }
+         }
+      }
+      else if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
+      {
+         {
+            {
+               co_await this_coro::reset_cancellation_state();
+               std::println("execute: terminating...");
+               child.terminate();
+               co_await child.async_wait();
+               co_return 9;
+            }
+         }
+      }
 
       std::println("execute: waiting for process...");
       co_await child.async_wait();
+      if (false)
+      {
+         error_code ignore;
+         std::ignore = out.close(ignore);
+         std::ignore = err.close(ignore);
+      }
       std::println("execute: waiting for process... done, exit code {}", child.exit_code());
+
+      std::println("execute: waiting for remaining output...");
+      co_await this_coro::reset_cancellation_state();
+      co_await std::move(promise);
+      std::println("execute: waiting for remaining output... done");
+
       co_return child.exit_code();
    }
 
@@ -196,7 +282,7 @@ private:
 
 protected:
    any_io_executor executor{context.get_executor()};
-   void run() { context.run();}
+   void run() { context.run(); }
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -324,7 +410,7 @@ TEST_F(Process, WHEN_sleep_is_cancelled_total_THEN_exits_with_code_2)
 
 TEST_F(Process, WHEN_cancelled_terminal_THEN_exits_with_code_9)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1", "-t1"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-i1", "-t1"}),
             cancel_after(250ms, cancellation_type::terminal, token()));
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
@@ -335,7 +421,7 @@ TEST_F(Process, WHEN_cancelled_terminal_THEN_exits_with_code_9)
 
 TEST_F(Process, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1", "-t1"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-i1", "-t1"}),
             cancel_after(250ms, token()));
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
@@ -345,7 +431,7 @@ TEST_F(Process, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
 
 TEST_F(Process, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefully)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-t0"}),
             cancel_after(250ms, cancellation_type::partial, token()));
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
@@ -357,7 +443,7 @@ TEST_F(Process, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefull
 
 TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal"}),
             cancel_after(250ms, cancellation_type::total, token()));
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
@@ -369,32 +455,68 @@ TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(Process, WHEN_cancelled_total_and_signals_are_ignored_THEN_escalates)
+struct Escalation
 {
-   co_spawn(executor, execute2("/usr/bin/stdbuf", {"-o0", "build/src/ignore_sigint", "-i1", "-t1"}),
-            cancel_after(250ms, token()));
+   std::vector<std::string> args;
+   cancellation_type cancellation_type;
+   std::vector<std::string> expectations;
+   int exit_code;
+};
+
+class ProcessEscalationTest : public Process, public ::testing::WithParamInterface<Escalation>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(
+   // clang-format off
+   EscalationCases, ProcessEscalationTest,
+   ::testing::Values(
+      Escalation{{},             cancellation_type::total,    {},                     2},
+      Escalation{{"-i0"},        cancellation_type::total,    {"SIGINT"},             0},
+      Escalation{{"-i1"},        cancellation_type::total,    {"SIGINT"},            15},
+      Escalation{{"-i1", "-t0"}, cancellation_type::total,    {"SIGINT", "SIGTERM"},  0},
+      Escalation{{"-i1", "-t1"}, cancellation_type::total,    {"SIGINT", "SIGTERM"},  9},
+      Escalation{{""},           cancellation_type::partial,  {},                    15},
+      Escalation{{"-t0"},        cancellation_type::partial,  {"SIGTERM"},            0},
+      Escalation{{"-t1"},        cancellation_type::partial,  {"SIGTERM"},            9},
+      Escalation{{"-i1", "-t1"}, cancellation_type::terminal, {},                     9}
+   )
+   // clang-format on
+);
+
+TEST_P(ProcessEscalationTest, Escalation)
+{
+   const auto& test = GetParam();
+
+   std::vector<std::string> args{"-o0", "build/src/handle_signal"};
+   args.insert(args.end(), test.args.begin(), test.args.end());
+   co_spawn(executor, execute2("/usr/bin/stdbuf", args),
+            cancel_after(250ms, test.cancellation_type, token()));
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
-   EXPECT_CALL(*this, on_log(HasSubstr("SIGINT"))).Times(1);
-   EXPECT_CALL(*this, on_log(HasSubstr("SIGTERM"))).Times(1);
-   EXPECT_CALL(*this, on_exit(9));
+
+   for (const auto& expectation : test.expectations)
+      EXPECT_CALL(*this, on_log(HasSubstr(expectation))).Times(1);
+
+   EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(test.exit_code ? 0 : 1);
+   EXPECT_CALL(*this, on_exit(test.exit_code));
+
    run();
 }
-
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(Process, WHEN_bash_is_killed_THEN_exits_with_code_9)
 {
    auto coro =
       execute("/usr/bin/bash",
-              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10; echo DONE"});
+              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 100; echo DONE"});
    co_spawn(executor, std::move(coro), cancel_after(250ms, token()));
    EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
    EXPECT_CALL(*this, on_exit(9));
    run();
 }
 
-TEST_F(Process, WHEN_bash_ingores_sigterm_THEN_sleep_finishes)
+TEST_F(Process, WHEN_bash_ignores_sigterm_THEN_sleep_finishes)
 {
    auto coro = execute("/usr/bin/bash", {"-c", "trap 'echo SIGTERM' SIGTERM; sleep 1; echo DONE"});
    co_spawn(executor, std::move(coro), cancel_after(250ms, cancellation_type::partial, token()));
@@ -404,7 +526,7 @@ TEST_F(Process, WHEN_bash_ingores_sigterm_THEN_sleep_finishes)
    run();
 }
 
-TEST_F(Process, WHEN_bash_ingores_sigint_THEN_sleep_finishes)
+TEST_F(Process, WHEN_bash_ignores_sigint_THEN_sleep_finishes)
 {
    auto coro = execute("/usr/bin/bash", {"-c", "trap 'echo SIGINT' SIGINT; sleep 1; echo DONE"});
    co_spawn(executor, std::move(coro), cancel_after(250ms, cancellation_type::total, token()));
@@ -431,7 +553,7 @@ TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
    run();
 }
 
-TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_noch_such_file_or_directory)
+TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_no_such_file_or_directory)
 {
    co_spawn(executor, execute("/path/does/not/exist", {}), token());
    EXPECT_CALL(*this, on_error(_));

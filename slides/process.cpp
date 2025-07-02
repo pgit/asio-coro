@@ -34,10 +34,10 @@ auto split_lines(std::string_view lines)
 
 /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
 /**
-   * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
-   * On error while reading from the pipe, any lines in the remaining buffer are printed,
-   * including the trailing incomplete line, if any.
-   */
+ * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
+ * On error while reading from the pipe, any lines in the remaining buffer are printed,
+ * including the trailing incomplete line, if any.
+ */
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {
    auto print = [&](auto line) { std::println("{}: \x1b[32m{}\x1b[0m", prefix, line); };
@@ -56,6 +56,7 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
       for (auto line : split_lines(buffer))
          print(line);
+      throw;
    }
 }
 
