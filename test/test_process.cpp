@@ -422,7 +422,7 @@ TEST_F(Process, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefull
 
 TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-i0"}),
             cancel_after(250ms, cancellation_type::total, token()));
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
