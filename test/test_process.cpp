@@ -61,11 +61,11 @@ protected:
                                            co_spawn(executor, log("STDERR", err), as_tuple));
       auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
 
-      auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
-      std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), rc);
+      auto [ec, exit_status] = co_await bp::async_execute(std::move(child), as_tuple);
+      std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), exit_status);
       if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
       {
-         rc = SIGKILL; // work around https://github.com/boostorg/process/issues/503
+         exit_status = SIGKILL; // work around https://github.com/boostorg/process/issues/503
 
          //
          // The pipes may still be open if any descendant of the child process has inherited the
@@ -77,18 +77,18 @@ protected:
          // Another option is to kill the whole process group (using the PGID), but that requires
          // 1) a custom initializer for calling setpgid(0, 0) and
          // 2) ::kill(-PID) to kill the group instead of only the process.
-         // See custom process tests for an example of this.
+         // See the custom process handling tests for an example of this.
          //
-         out.close();
-         err.close();
+         error_code ignore;
+         std::ignore = out.close(ignore);
+         std::ignore = err.close(ignore);
       }
 
       co_await this_coro::reset_cancellation_state();
       std::println("execute: waiting for remaining output...");
       co_await std::move(promise);
-
       std::println("execute: waiting for remaining output... done");
-      co_return rc;
+      co_return exit_status;
    }
 };
 
