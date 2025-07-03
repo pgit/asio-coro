@@ -3,9 +3,13 @@
         "ASIO",
         "Asynchrony",
         "Awesomest",
+        "catched",
         "clangd",
         "coro",
+        "gmock",
+        "gtest",
         "socat",
+        "TSAN",
         "Watchlist"
     ]
 }
