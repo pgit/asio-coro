@@ -1,3 +1,4 @@
+#pragma once
 #include "formatters.hpp"
 
 #include <boost/asio.hpp>
@@ -108,7 +109,7 @@ constexpr auto log_exception(std::string prefix)
 
 namespace std
 {
-inline void PrintTo(const std::exception_ptr& eptr, std::ostream* os) { *os << what(eptr); }
+inline void PrintTo(const std::exception_ptr& ep, std::ostream* os) { *os << what(ep); }
 } // namespace std
 
 template <typename F>

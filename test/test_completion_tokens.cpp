@@ -154,7 +154,7 @@ TEST_F(CompletionToken, WHEN_timer_is_cancelled_THEN_future_throws)
    EXPECT_LE(runtime(), 100ms);
 }
 
-TEST_F(CompletionToken, WHEN_timer_is_cancelled_THEN_error_is_returnd_as_tuple)
+TEST_F(CompletionToken, WHEN_timer_is_cancelled_THEN_error_is_returned_as_tuple)
 {
    steady_timer timer(executor);
    timer.expires_after(100ms);

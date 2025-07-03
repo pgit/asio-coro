@@ -65,22 +65,33 @@ TEST_F(Asio, WHEN_task_is_finished_THEN_sets_future)
 
 // =================================================================================================
 
-/// https://www.boost.org/doc/libs/1_86_0/doc/html/boost_asio/example/cpp20/type_erasure/sleep.hpp
+/// https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/example/cpp20/type_erasure/sleep.hpp
+/**
+ * In this example we are defining an async operation that is a free function. As there is no
+ * I/O object that we can get an executor from, we have to pass it explicitly.
+ *
+ * We could also try to use the executor associated with the completion token. But that is only an
+ * "completion executor", which is only a subset of an "I/O executor". We cannot create a timer
+ * object on it.
+ *
+ * In the end, the idea to use the completion tokens associated executor for intermediate async
+ * operations is misguided, anyway: The executor for those operations should be a property of the
+ * operation, not the completion token.
+ */
 class ComposedAny : public testing::Test
 {
-public:
    static void async_sleep_impl(SleepHandler handler, boost::asio::any_io_executor ex,
                                 Duration duration)
    {
       auto timer = std::make_shared<asio::steady_timer>(ex, duration);
-#if 1
       timer->async_wait(asio::consign(std::move(handler), timer));
-#else // equivalent to
-      timer->async_wait([timer = std::move(timer), handler = std::move(handler)](
-                           error_code ec) mutable { std::move(handler)(ec); });
-#endif
+      // equivalent to
+      // timer->async_wait([timer = std::move(timer), handler = std::move(handler)](error_code ec) {
+      //    std::move(handler)(ec);
+      // });
    }
 
+public:
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
    static inline auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
                                   CompletionToken&& token)
@@ -107,51 +118,6 @@ TEST_F(ComposedAny, WHEN_async_op_finishes_THEN_sets_future)
 
 // =================================================================================================
 
-/**
- * Try forwarding to a type-erased completion handler.
- */
-class ComposedIndirect : public testing::Test
-{
-private:
-   auto async_sleep_impl(SleepHandler token, Duration duration)
-   {
-      return asio::async_initiate<SleepHandler, Sleep>(
-         [](auto handler, Duration duration)
-         {
-            auto ex = boost::asio::get_associated_executor(handler);
-            auto timer = std::make_shared<asio::steady_timer>(std::move(ex), duration);
-            return timer->async_wait(consign(std::move(handler), timer));
-         },
-         token, duration);
-   }
-
-public:
-   template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   auto async_sleep(Duration duration, CompletionToken&& token)
-   {
-      return boost::asio::async_initiate<CompletionToken, Sleep>(
-         [this](boost::asio::completion_handler_for<Sleep> auto&& handler, Duration duration)
-         {
-            async_sleep_impl(std::move(handler), duration); //
-         },
-         token, duration);
-   }
-};
-
-TEST_F(ComposedIndirect, AnyDetached)
-{
-   boost::asio::io_context context;
-   async_sleep(100ms, bind_executor(context, asio::detached));
-   async_sleep(100ms, bind_executor(context, asio::detached));
-   ::run(context);
-}
-
-// =================================================================================================
-
-/**
- * Passing the executor explicitly is not very idiomatic -- instaed just bind the executor to
- * the completion token.
- */
 class ComposedIndirectExplicit : public testing::Test
 {
 private:
@@ -198,22 +164,15 @@ TEST_F(ComposedIndirectExplicit, WHEN_async_op_finishes_THEN_sets_future)
 
 // =================================================================================================
 
-class ComposedAsyncInitiate : public testing::Test
+/**
+ * Same as before, but this works only if BOOST_ASIO_USE_TS_EXECUTOR_AS_DEFAULT is defined.
+ *
+ * Attempting to get the associated executor from the completion token and using that for
+ * intermediate async operations is not a good idea!
+ */
+class DropHandler : public testing::Test
 {
 public:
-   template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   static auto async_sleep(Duration duration, CompletionToken&& token)
-   {
-      return boost::asio::async_initiate<CompletionToken, Sleep>(
-         [](SleepHandler handler, Duration duration)
-         {
-            auto ex = boost::asio::get_associated_executor(handler);
-            auto timer = std::make_shared<asio::steady_timer>(std::move(ex), duration);
-            return timer->async_wait(consign(std::move(handler), timer));
-         },
-         token, duration);
-   }
-
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
    static auto drop_handler(CompletionToken&& token)
    {
@@ -226,39 +185,7 @@ public:
    }
 };
 
-TEST_F(ComposedAsyncInitiate, AnyDetached)
-{
-   boost::asio::io_context context;
-   async_sleep(100ms, bind_executor(context, asio::detached));
-   async_sleep(100ms, bind_executor(context, asio::detached));
-   EXPECT_EQ(::run(context), 2);
-}
-
-TEST_F(ComposedAsyncInitiate, AnyFuture)
-{
-   boost::asio::io_context context;
-   auto f1 = async_sleep(100ms, bind_executor(context, asio::use_future));
-   auto f2 = async_sleep(100ms, bind_executor(context, asio::use_future));
-   ::run(context);
-   EXPECT_NO_THROW(f1.get());
-   EXPECT_NO_THROW(f2.get());
-}
-
-TEST_F(ComposedAsyncInitiate, DISABLED_AnyDetachedDefault)
-{
-   async_sleep(100ms, asio::detached);
-   async_sleep(100ms, asio::detached);
-}
-
-TEST_F(ComposedAsyncInitiate, DISABLED_AnyFutureDefault)
-{
-   auto f1 = async_sleep(100ms, asio::use_future);
-   auto f2 = async_sleep(100ms, asio::use_future);
-   EXPECT_NO_THROW(f1.get());
-   EXPECT_NO_THROW(f2.get());
-}
-
-TEST_F(ComposedAsyncInitiate, DropHandler)
+TEST_F(DropHandler, DropHandler)
 {
    boost::asio::io_context context;
 
@@ -273,7 +200,6 @@ TEST_F(ComposedAsyncInitiate, DropHandler)
       context.get_executor(),
       [&]() -> asio::awaitable<void>
       {
-         co_await async_sleep(100ms, asio::deferred);
          Class object1;
          co_await drop_handler(asio::deferred);
          Class object2;
@@ -288,7 +214,7 @@ TEST_F(ComposedAsyncInitiate, DropHandler)
    ::run(context);
 }
 
-TEST_F(ComposedAsyncInitiate, DropHandlerFuture)
+TEST_F(DropHandler, DropHandlerFuture)
 {
    boost::asio::io_context context;
 
@@ -296,11 +222,7 @@ TEST_F(ComposedAsyncInitiate, DropHandlerFuture)
       context.get_executor(),
       [&]() -> asio::awaitable<void>
       { //
-         std::println("waiting...");
-         co_await async_sleep(100ms, asio::deferred);
-         std::println("waiting... done");
          std::println("dropping handler...");
-         // co_await drop_handler(100ms, asio::as_tuple(asio::deferred));
          co_await drop_handler(asio::deferred);
          std::println("dropping handler... done");
       },
@@ -317,11 +239,11 @@ TEST_F(ComposedAsyncInitiate, DropHandlerFuture)
 // fetchted using get_io_executor()...
 //
 // UPDATE: Actually, this works. When calling the initiating function, we have to bind the
-//         executor to the completion token, as usual. No suprises here. Comparing to
+//         executor to the completion token, as usual. No surprises here. Comparing to
 //         async_initiate<>, the only difference is that we get the executor from the state object
 //         instead of calling get_associated_executor().
 //
-// BUT: Even though work is now properly registerd to the executor and the testcase works, we have
+// BUT: Even though work is now properly registered to the executor and the testcase works, we have
 //      introduced a race condition that becomes visible when running the test with TSAN: When we
 //      create a timer on the executor returned by state.get_io_context(), it will run on the
 //      system executor! Doing this will lazily create a new thread and introduce the TSAN issues.

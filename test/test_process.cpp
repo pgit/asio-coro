@@ -1,4 +1,5 @@
 #include "asio-coro.hpp"
+#include "process_base.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
@@ -19,70 +20,9 @@ using namespace ::testing;
 
 // =================================================================================================
 
-class Process : public testing::Test
+class Process : public ProcessBase
 {
 protected:
-   /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
-   /**
-    * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
-    * On error while reading from the pipe, any lines in the remaining buffer are printed,
-    * including the trailing incomplete line, if any.
-    */
-   awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
-   {
-      auto print = [&](auto line)
-      {
-         std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
-         on_log(line);
-      };
-
-      std::string buffer;
-      try
-      {
-         for (;;)
-         {
-            auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
-            print(std::string_view(buffer).substr(0, n - 1));
-            buffer.erase(0, n);
-            co_await sleep(50ms);
-         }
-      }
-      catch (const system_error& ec)
-      {
-         for (auto line : split_lines(buffer))
-            print(line);
-
-         std::println("{}: {}", prefix, ec.code().message());
-         throw;
-      }
-   }
-
-   MOCK_METHOD(void, on_log, (std::string_view line), ());
-
-   // ----------------------------------------------------------------------------------------------
-
-   awaitable<void> log(readable_pipe& out, readable_pipe& err)
-   {
-      //
-      // TODO: This seems to work, but may not be what you want in cancellation scenarios:
-      //       On a signal, STDERR might be closed early, while there is still stuff to read
-      //       from STDOUT. But because of the &&, reading from STDOUT will be cancelled.
-      //
-      // This actually wants to be two separate tasks.
-      //
-      co_await (log("STDOUT", out) && log("STDERR", err));
-   }
-
-   awaitable<void> sleep(steady_timer::duration timeout)
-   {
-      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-      steady_timer timer(co_await this_coro::executor);
-      timer.expires_after(timeout);
-      co_await timer.async_wait();
-   }
-
-   // ----------------------------------------------------------------------------------------------
-
    awaitable<int> execute(boost::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
@@ -116,18 +56,12 @@ protected:
       //
       // Solution: experimental::use_promise.
       //
-#define USE_WAIT_FOR_ALL
-#if defined(USE_WAIT_FOR_ALL)
       auto group =
          experimental::make_parallel_group(co_spawn(executor, log("STDOUT", out), as_tuple),
                                            co_spawn(executor, log("STDERR", err), as_tuple));
       auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
-#else
-      auto p1 = co_spawn(executor, log("STDOUT", out), as_tuple(experimental::use_promise));
-      auto p2 = co_spawn(executor, log("STDERR", err), as_tuple(experimental::use_promise));
-#endif
-      auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
 
+      auto [ec, rc] = co_await bp::async_execute(std::move(child), as_tuple);
       std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), rc);
       if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
       {
@@ -138,130 +72,11 @@ protected:
 
       co_await this_coro::reset_cancellation_state();
       std::println("execute: waiting for remaining output...");
-#if defined(USE_WAIT_FOR_ALL)
       co_await std::move(promise);
-#else
-      co_await std::move(p1);
-      co_await std::move(p2);
-#endif
+
       std::println("execute: waiting for remaining output... done");
-      // std::println("execute: waiting for remaining output... {}", what(std::get<0>(log_result)));
       co_return rc;
    }
-
-   // ----------------------------------------------------------------------------------------------
-
-   awaitable<int> execute2(boost::filesystem::path path, std::vector<std::string> args)
-   {
-      std::println("execute: {} {}", path.generic_string(), join(args, " "));
-
-      auto executor = co_await this_coro::executor;
-      readable_pipe out(executor), err(executor);
-      bp::process child(executor, bp::filesystem::path(path), args,
-                        bp::process_stdio{{}, out, err});
-
-      //
-      // We support all three types of cancellation, total, partial and terminal.
-      // Note that total cancellation implies partial and terminal cancellation.
-      //
-      // We have to explicitly enable all three types of cancellation here, as there is no way
-      // no way to deduce the set of supported cancellation types from the inner async operation
-      // (bp::async_execute). The default is to support terminal cancellation only.
-      //
-      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-      auto cs = co_await this_coro::cancellation_state;
-
-      //
-      // Start logging in background. We cannot use && here, as STDOUT and STDERR might be closed
-      // independently of each other and we do want to continue reading from the other. However,
-      // we can use a parallel group for this like operator&& does, but using the wait_for_all()
-      // condition instead of wait_for_one_error().
-      //
-      auto group =
-         experimental::make_parallel_group(co_spawn(executor, log("STDOUT", out), as_tuple),
-                                           co_spawn(executor, log("STDERR", err), as_tuple));
-      auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
-
-      //
-      // This is a little awkward, but a very ASIO-ish thing to do: Use a timer for notification
-      // purposes. It seems to be the easiest way to wait for cancellation signals in a coroutine.
-      //
-      steady_timer timer(executor);
-      timer.expires_at(steady_timer::time_point::max());
-      auto [ec] = co_await timer.async_wait(as_tuple);
-      int status = 0;
-
-      //
-      // Reset cancellation state if needed -- otherwise, the next co_await throws.
-      //
-      std::println("execute: {} / {}", what(ec), cs.cancelled());
-      auto cancelled = cs.cancelled();
-      if (cancelled != cancellation_type::none)
-         co_await this_coro::reset_cancellation_state();
-
-      //
-      // SIGINT --> SIGTERM --> SIGKILL
-      //
-      if ((cancelled & cancellation_type::total) != cancellation_type::none)
-      {
-         std::println("execute: interrupting...");
-         child.interrupt();
-         std::tie(ec, status) = co_await child.async_wait(cancel_after(1s, as_tuple));
-      }
-
-      if (ec == boost::system::errc::operation_canceled ||
-          (cancelled & cancellation_type::partial) != cancellation_type::none)
-      {
-         std::println("execute: requesting exit...");
-         child.request_exit();
-         std::tie(ec, status) = co_await child.async_wait(cancel_after(1s, as_tuple));
-      }
-
-      if (ec == boost::system::errc::operation_canceled ||
-          (cancelled & cancellation_type::terminal) != cancellation_type::none)
-      {
-         std::println("execute: terminating...");
-         child.terminate();
-         co_await child.async_wait(as_tuple);
-         co_return 9;
-      }
-
-      //
-      // Wait for process to finish.
-      //
-      std::println("execute: waiting for process...");
-      co_await child.async_wait(as_tuple);
-      std::println("execute: waiting for process... done, exit code {}", child.exit_code());
-
-      std::println("execute: waiting for remaining output...");
-      co_await std::move(promise);
-      std::println("execute: waiting for remaining output... done");
-
-      co_return child.exit_code();
-   }
-
-protected:
-   auto token()
-   {
-      return [this](std::exception_ptr ep, int exit_code)
-      {
-         std::println("spawn: {}, exit_code={}", what(ep), exit_code);
-         if (ep)
-            on_error(code(ep));
-         else
-            on_exit(exit_code);
-      };
-   }
-
-   MOCK_METHOD(void, on_error, (error_code ec), ());
-   MOCK_METHOD(void, on_exit, (int exit_code), ());
-
-private:
-   io_context context;
-
-protected:
-   any_io_executor executor{context.get_executor()};
-   void run() { context.run(); }
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -432,56 +247,6 @@ TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
    run();
 }
 
-// -------------------------------------------------------------------------------------------------
-
-struct Escalation
-{
-   std::vector<std::string> args;
-   cancellation_type cancellation_type;
-   std::vector<std::string> expectations;
-   int exit_code;
-};
-
-class ProcessEscalationTest : public Process, public ::testing::WithParamInterface<Escalation>
-{
-};
-
-INSTANTIATE_TEST_SUITE_P(
-   // clang-format off
-   EscalationCases, ProcessEscalationTest,
-   ::testing::Values(
-      Escalation{{},             cancellation_type::total,    {},                     2},
-      Escalation{{"-i0"},        cancellation_type::total,    {"SIGINT"},             0},
-      Escalation{{"-i1"},        cancellation_type::total,    {"SIGINT"},            15},
-      Escalation{{"-i1", "-t0"}, cancellation_type::total,    {"SIGINT", "SIGTERM"},  0},
-      Escalation{{"-i1", "-t1"}, cancellation_type::total,    {"SIGINT", "SIGTERM"},  9},
-      Escalation{{""},           cancellation_type::partial,  {},                    15},
-      Escalation{{"-t0"},        cancellation_type::partial,  {"SIGTERM"},            0},
-      Escalation{{"-t1"},        cancellation_type::partial,  {"SIGTERM"},            9},
-      Escalation{{"-i1", "-t1"}, cancellation_type::terminal, {},                     9}
-   )
-   // clang-format on
-);
-
-TEST_P(ProcessEscalationTest, Escalation)
-{
-   const auto& test = GetParam();
-
-   std::vector<std::string> args{"-o0", "build/src/handle_signal"};
-   args.insert(args.end(), test.args.begin(), test.args.end());
-   co_spawn(executor, execute2("/usr/bin/stdbuf", args),
-            cancel_after(250ms, test.cancellation_type, token()));
-
-   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
-
-   for (const auto& expectation : test.expectations)
-      EXPECT_CALL(*this, on_log(HasSubstr(expectation))).Times(1);
-
-   EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(test.exit_code ? 0 : 1);
-   EXPECT_CALL(*this, on_exit(test.exit_code));
-
-   run();
-}
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(Process, WHEN_bash_is_killed_THEN_exits_with_code_9)

@@ -4,8 +4,6 @@
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 
-#include <filesystem>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -40,7 +38,7 @@ TEST_F(Fixture, WHEN_spawn_process_THEN_finishes_eventually)
    EXPECT_EQ(future.get(), 0);
 }
 
-TEST_F(Fixture, WHEN_process_suceeds_THEN_returns_zero_exit_code)
+TEST_F(Fixture, WHEN_process_succeeds_THEN_returns_zero_exit_code)
 {
    bp::process child(executor, "/usr/bin/true", {});
    auto future = child.async_wait(use_future);
