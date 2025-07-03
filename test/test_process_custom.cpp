@@ -28,7 +28,7 @@ struct Escalation
 {
    std::vector<std::string> args;
    cancellation_type cancellation_type;
-   std::vector<std::string> expectations;
+   std::set<std::string> expectations;
    int exit_code;
 };
 
@@ -39,6 +39,22 @@ inline void PrintTo(const Escalation& e, std::ostream* os)
                       e.exit_code);
 }
 
+//
+// There is no builtin support for process groups in Process V2, because it is impossible to
+// implement in a portable way. But for POSIX, we can rely on "process groups" and kill them, taking
+// down any descendant process as well.
+//
+struct setpgid_initializer
+{
+   template <typename Launcher>
+   error_code on_exec_setup(Launcher& launcher, const boost::filesystem::path& executable,
+                            const char* const*(&cmd_line))
+   {
+      setpgid(0, 0);
+      return error_code{};
+   }
+};
+
 class ProcessCustom : public ProcessBase, public ::testing::WithParamInterface<Escalation>
 {
 protected:
@@ -48,8 +64,8 @@ protected:
 
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor), err(executor);
-      bp::process child(executor, bp::filesystem::path(path), args,
-                        bp::process_stdio{{}, out, err});
+      bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err},
+                        setpgid_initializer{});
 
       //
       // We support all three types of cancellation, total, partial and terminal.
@@ -92,6 +108,7 @@ protected:
       //
       // SIGINT --> SIGTERM --> SIGKILL
       //
+      ec = error_code{};
       if ((cancelled & cancellation_type::total) != cancellation_type::none)
       {
          std::println("execute: interrupting...");
@@ -110,8 +127,10 @@ protected:
       if (ec == boost::system::errc::operation_canceled ||
           (cancelled & cancellation_type::terminal) != cancellation_type::none)
       {
-         std::println("execute: terminating...");
-         child.terminate();
+         // std::println("execute: terminating...");
+         // child.terminate();
+         std::println("execute: terminating... (PGID={})", child.native_handle());
+         ::kill(-child.native_handle(), SIGKILL); // kill process group
          co_await child.async_wait(as_tuple);
          co_return 9;
       }
@@ -154,7 +173,18 @@ protected:
    void run() { context.run(); }
 };
 
-// -------------------------------------------------------------------------------------------------
+TEST_F(ProcessCustom, WHEN_bash_is_killed_THEN_exits_with_code_9)
+{
+   auto coro =
+      execute("/usr/bin/bash",
+              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 60; echo DONE"});
+   co_spawn(executor, std::move(coro), cancel_after(250ms, token()));
+   EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
+   EXPECT_CALL(*this, on_exit(9));
+   run();
+}
+
+// =================================================================================================
 
 INSTANTIATE_TEST_SUITE_P(
    // clang-format off
@@ -187,8 +217,10 @@ TEST_P(ProcessCustom, Escalation)
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
 
-   for (const auto& expectation : param.expectations)
-      EXPECT_CALL(*this, on_log(HasSubstr(expectation))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGINT")))
+      .Times(param.expectations.contains("SIGINT") ? 1 : 0);
+   EXPECT_CALL(*this, on_log(HasSubstr("SIGTERM")))
+      .Times(param.expectations.contains("SIGTERM") ? 1 : 0);
 
    EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(param.exit_code ? 0 : 1);
    EXPECT_CALL(*this, on_exit(param.exit_code));

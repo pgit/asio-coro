@@ -66,6 +66,19 @@ protected:
       if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
       {
          rc = SIGKILL; // work around https://github.com/boostorg/process/issues/503
+
+         //
+         // The pipes may still be open if any descendant of the child process has inherited the
+         // writing ends. For example, this happens when running a sleep command inside bash.
+         //
+         // This is normal behaviour, we just have to decide how to handle it. One option, at least
+         // for terminal cancellation, is to just close the reading end so that we don't block.
+         //
+         // Another option is to kill the whole process group (using the PGID), but that requires
+         // 1) a custom initializer for calling setpgid(0, 0) and
+         // 2) ::kill(-PID) to kill the group instead of only the process.
+         // See custom process tests for an example of this.
+         //
          out.close();
          err.close();
       }
@@ -253,7 +266,7 @@ TEST_F(Process, WHEN_bash_is_killed_THEN_exits_with_code_9)
 {
    auto coro =
       execute("/usr/bin/bash",
-              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 100; echo DONE"});
+              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 60; echo DONE"});
    co_spawn(executor, std::move(coro), cancel_after(250ms, token()));
    EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
    EXPECT_CALL(*this, on_exit(9));
