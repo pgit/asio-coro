@@ -5,4 +5,5 @@ foreach(src_file ${SRC_FILES})
 endforeach()
 
 target_link_libraries(process PUBLIC Boost::process)
-target_link_libraries(process_exit_code PUBLIC Boost::process)
+target_link_libraries(process_signal PUBLIC Boost::process)
+target_link_libraries(process_timeout PUBLIC Boost::process)
