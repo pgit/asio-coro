@@ -6,10 +6,15 @@
         "catched",
         "clangd",
         "coro",
+        "EPOLL",
+        "fsanitize",
         "gmock",
         "gtest",
+        "libc",
         "socat",
+        "stdlib",
         "TSAN",
+        "URING",
         "Watchlist"
     ]
 }
