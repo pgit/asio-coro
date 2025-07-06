@@ -1,5 +1,3 @@
-#include "asio-coro.hpp"
-
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
@@ -28,8 +26,49 @@ awaitable<void> sleep(steady_timer::duration timeout)
    co_await timer.async_wait();
 }
 
+// Custom validator for duration option
+auto parse_duration = [](const std::string& s) -> std::optional<steady_timer::duration>
+{
+   try
+   {
+      size_t num_end = 0;
+      int64_t value = std::stoll(s, &num_end);
+      std::string unit = s.substr(num_end);
+      if (unit == "h")
+         return std::chrono::hours(value);
+      if (unit == "m")
+         return std::chrono::minutes(value);
+      if (unit == "s")
+         return std::chrono::seconds(value);
+      if (unit == "ms")
+         return std::chrono::milliseconds(value);
+   }
+   catch (...)
+   {
+   }
+   return std::nullopt;
+};
+
+// Register a custom validator for steady_timer::duration
+namespace boost::program_options
+{
+template <>
+void validate<steady_timer::duration>(boost::any& v, const std::vector<std::string>& values,
+                                      boost::asio::steady_timer::duration*, long)
+{
+   using namespace boost::program_options;
+   validators::check_first_occurrence(v);
+   const std::string& s = validators::get_single_string(values);
+   auto d = parse_duration(s);
+   if (!d)
+      throw validation_error(validation_error::invalid_option_value, s);
+   v = boost::any(*d);
+}
+} // namespace boost::program_options
+
 int main(int argc, char* argv[])
 {
+   std::optional<steady_timer::duration> timeout = 10s;
    std::optional<size_t> ignore_sigint;
    std::optional<size_t> ignore_sigterm;
 
@@ -47,7 +86,7 @@ int main(int argc, char* argv[])
    //
    // Setup program options.
    //
-   po::options_description desc("Wait for 10 seconds, SIGINT or SIGTERM, whichever comes first.",
+   po::options_description desc("Wait for timeout, SIGINT or SIGTERM, whichever comes first.",
                                 term_width);
    auto opts = desc.add_options();
    opts("help,h", "Show help message");
@@ -55,6 +94,8 @@ int main(int argc, char* argv[])
         "Install a signal handler for SIGINT and ignore N signals before exiting.");
    opts("handle-sigterm,t", po::value<size_t>()->value_name("N"),
         "Install a signal handler for SIGTERM and ignore N signals before exiting.");
+   opts("timeout", po::value<steady_timer::duration>()->value_name("DURATION"),
+        "Set timeout duration (e.g. 5s, 3m, 2h).");
 
    //
    // Parse program options.
@@ -76,6 +117,9 @@ int main(int argc, char* argv[])
 
       if (vm.count("handle-sigterm"))
          ignore_sigterm = vm["handle-sigterm"].as<size_t>();
+
+      if (vm.count("timeout"))
+         timeout = vm["timeout"].as<steady_timer::duration>();
    }
    catch (const std::exception& ex)
    {
@@ -111,7 +155,8 @@ int main(int argc, char* argv[])
    if (ignore_sigterm)
       ops.emplace_back(co_spawn(executor, handle("SIGTERM", SIGTERM, *ignore_sigterm), deferred));
 
-   ops.emplace_back(co_spawn(executor, sleep(10s), deferred));
+   if (timeout)
+      ops.emplace_back(co_spawn(executor, sleep(*timeout), deferred));
 
    // https://think-async.com/Asio/asio-1.30.2/doc/asio/reference/experimental__make_parallel_group/overload2.html
    make_parallel_group(std::move(ops)).async_wait(wait_for_one(), detached);

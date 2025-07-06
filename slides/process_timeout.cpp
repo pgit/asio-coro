@@ -56,27 +56,49 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    {
       for (auto line : split_lines(buffer))
          print(line);
-      if (ec.code() == error::eof)
-         co_return;
       throw;
    }
 }
 
-/// Execute process \p path with given \p args, logging its STDOUT.
-/**
- * https://www.boost.org/doc/libs/1_88_0/doc/html/process.html   
- */
-awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args = {})
+awaitable<void> log(readable_pipe& out, readable_pipe& err)
+{
+   co_await (log("STDOUT", out) && log("STDERR", err));
+}
+
+awaitable<void> sleep(steady_timer::duration timeout)
+{
+   steady_timer timer(co_await this_coro::executor);
+   timer.expires_after(timeout);
+   co_await timer.async_wait();
+}
+
+// =================================================================================================
+
+/// Execute process \p path with given \p args, interrupting it after \p timeout.
+awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args,
+                       std::chrono::steady_clock::duration timeout)
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
    auto executor = co_await this_coro::executor;
-   readable_pipe out(executor);
-   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{.out = out});
+   readable_pipe out(executor), err(executor);
+   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err});
 
    std::println("execute: communicating...");
-   co_await log("STDOUT", out);
-   std::println("execute: communicating... done");
+   auto result = co_await (log(out, err) || sleep(timeout));
+   if (result.index() == 0)
+      std::println("execute: communicating... done");
+   else
+   {
+      std::println("execute: communicating... timeout", result.index());
+      child.interrupt();
+   }
+
+   //
+   // Give the process another second to exit after interrupting it, then terminate.
+   //
+   result = co_await (log("STDOUT", out) && log("STDERR", err) || sleep(1s));
+   child.terminate();
 
    //
    // Wait for process to finish and retrieve exit code.
@@ -87,9 +109,27 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
    co_return child.exit_code();
 }
 
+// -------------------------------------------------------------------------------------------------
+
+/// For slides only: STDOUT and STDERR, but no timeout
+awaitable<void> execute(std::filesystem::path path, std::vector<std::string> args = {})
+{
+   auto executor = co_await this_coro::executor;
+   readable_pipe out(executor), err(executor);
+   bp::process child(executor, bp::filesystem::path(path), std::move(args),
+                     bp::process_stdio{{}, out, err});
+
+   co_await (log("STDOUT", out) && log("STDERR", err));
+   co_await child.async_wait();
+}
+
+// =================================================================================================
+
 int main()
 {
    io_context context;
-   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}), detached);
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}, 250ms), detached);
    context.run();
 }
+
+// =================================================================================================

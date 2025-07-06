@@ -7,6 +7,7 @@
 #include <boost/scope/scope_exit.hpp>
 
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
+using namespace asio;
 using ip::tcp;
 
 using boost::scope::make_scope_exit;
@@ -16,30 +17,6 @@ using boost::system::system_error;
 using namespace std::chrono_literals;
 using namespace std::literals::string_view_literals;
 using namespace experimental::awaitable_operators;
-
-// =================================================================================================
-
-template <>
-struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view>
-{
-   auto format(asio::cancellation_type type, auto& ctx) const
-   {
-      using ct = asio::cancellation_type;
-      switch (type)
-      {
-      case ct::none:
-         return std::formatter<std::string_view>::format("none", ctx);
-      case ct::terminal:
-         return std::formatter<std::string_view>::format("terminal", ctx);
-      case ct::partial:
-         return std::formatter<std::string_view>::format("partial", ctx);
-      case ct::total:
-         return std::formatter<std::string_view>::format("total", ctx);
-      default:
-         return std::formatter<std::string_view>::format("unknown", ctx);
-      }
-   }
-};
 
 // =================================================================================================
 

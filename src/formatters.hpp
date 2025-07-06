@@ -1,3 +1,4 @@
+#pragma once
 #include <format>
 #include <ranges>
 
@@ -7,7 +8,7 @@
 #include <boost/algorithm/string/join.hpp>
 
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
-using namespace asio; // in case we want to qualify explicitly
+using namespace asio;
 using ip::tcp;
 
 using boost::algorithm::join;
@@ -38,11 +39,33 @@ struct std::formatter<ip::address> : std::formatter<std::string>
 template <>
 struct std::formatter<ip::tcp::endpoint> : std::formatter<std::string>
 {
-   auto format(const tcp::endpoint& endpoint, std::format_context& ctx) const
+   auto format(const ip::tcp::endpoint& endpoint, std::format_context& ctx) const
    {
       std::ostringstream stream;
-      stream << tcp::endpoint{normalize(endpoint.address()), endpoint.port()};
+      stream << ip::tcp::endpoint{normalize(endpoint.address()), endpoint.port()};
       return std::formatter<std::string>::format(std::move(stream).str(), ctx);
+   }
+};
+
+template <>
+struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view>
+{
+   auto format(asio::cancellation_type type, auto& ctx) const
+   {
+      using ct = asio::cancellation_type;
+      switch (type)
+      {
+      case ct::none:
+         return std::formatter<std::string_view>::format("none", ctx);
+      case ct::terminal:
+         return std::formatter<std::string_view>::format("terminal", ctx);
+      case ct::partial:
+         return std::formatter<std::string_view>::format("partial", ctx);
+      case ct::total:
+         return std::formatter<std::string_view>::format("total", ctx);
+      default:
+         return std::formatter<std::string_view>::format("unknown", ctx);
+      }
    }
 };
 

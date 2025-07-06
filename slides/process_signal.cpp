@@ -15,6 +15,7 @@ using namespace boost::asio;
 using namespace experimental::awaitable_operators;
 
 using boost::algorithm::join;
+using boost::system::error_code;
 using boost::system::system_error;
 namespace bp = boost::process::v2;
 
@@ -62,17 +63,40 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
    }
 }
 
+// https://www.boost.org/doc/libs/1_88_0/doc/html/process.html#linux_launchers
+struct setpgid_initializer
+{
+   template <typename Launcher>
+   error_code on_exec_setup(Launcher& launcher, const boost::filesystem::path& executable,
+                            const char* const*(&cmd_line))
+   {
+      //
+      // This call will set the PGID of the child process equal to its PID, thereby creating a
+      // new process group and detaching it from the parent process's group. This way, a SIGINT
+      // sent to the parent process is not delivered to the child process automatically anymore.
+      //
+      setpgid(0, 0);
+      return error_code{};
+   }
+};
+
 /// Execute process \p path with given \p args, logging its STDOUT.
-/**
- * https://www.boost.org/doc/libs/1_88_0/doc/html/process.html   
- */
 awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args = {})
 {
    std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
    auto executor = co_await this_coro::executor;
-   readable_pipe out(executor);
-   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{.out = out});
+   readable_pipe out(executor), err(executor);
+   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err},
+                     setpgid_initializer{});
+   
+   signal_set sigint(co_await this_coro::executor, SIGINT);
+   sigint.async_wait([&](error_code ec, int signal){
+      if (ec)
+         return;
+      std::println(" INTERRUPTED");         
+      child.interrupt();
+   });
 
    std::println("execute: communicating...");
    co_await log("STDOUT", out);
@@ -90,6 +114,6 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 int main()
 {
    io_context context;
-   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}), detached);
+   co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5"}), detached);
    context.run();
 }

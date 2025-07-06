@@ -1,5 +1,5 @@
-#include "asio-coro.hpp"
 #include "process_base.hpp"
+#include "asio-coro.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
@@ -30,7 +30,6 @@ awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
          auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
          print(std::string_view(buffer).substr(0, n - 1));
          buffer.erase(0, n);
-         co_await sleep(50ms);
       }
    }
    catch (const system_error& ec)

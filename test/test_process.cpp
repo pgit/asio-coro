@@ -1,5 +1,6 @@
 #include "asio-coro.hpp"
 #include "process_base.hpp"
+#include "utils.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
@@ -20,7 +21,7 @@ using namespace ::testing;
 
 // =================================================================================================
 
-class Process : public ProcessBase
+class Process : public ProcessBase, public testing::Test
 {
 protected:
    awaitable<int> execute(boost::filesystem::path path, std::vector<std::string> args)
@@ -61,6 +62,11 @@ protected:
                                            co_spawn(executor, log("STDERR", err), as_tuple));
       auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
 
+      //
+      // Use async_execute() from boost::process. It supports all three cancellation types 'total',
+      // 'partial' and 'terminal', and transforms them into sending SIGINT, SIGTERM and SIGKILL, 
+      // respectively.
+      //
       auto [ec, exit_status] = co_await bp::async_execute(std::move(child), as_tuple);
       std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), exit_status);
       if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
@@ -301,6 +307,15 @@ TEST_F(Process, WHEN_no_newline_at_end_of_output_THEN_prints_line)
    EXPECT_CALL(*this, on_log("No newline at the end of this"));
    EXPECT_CALL(*this, on_exit(0));
    run();
+}
+
+TEST_F(Process, WHEN_multiple_lines_are_in_last_buffer_THEN_all_are_print)
+{
+   co_spawn(executor, execute("/usr/bin/echo", {"-ne", "First line\nLast line"}), token());
+   EXPECT_CALL(*this, on_log("First line"));
+   EXPECT_CALL(*this, on_log("Last line"));
+   EXPECT_CALL(*this, on_exit(0));
+   runDebug();
 }
 
 TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)

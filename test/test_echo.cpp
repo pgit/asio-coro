@@ -36,15 +36,7 @@ public:
       std::array<char, 64 * 1024> data;
       for (;;)
       {
-#if 1
          auto n = co_await socket.async_read_some(buffer(data));
-#else
-         auto [ec, n] = co_await socket.async_read_some(buffer(data), as_tuple);
-         if (ec == boost::system::errc::operation_canceled)
-            break;
-         else if (ec)
-            throw system_error(ec);
-#endif
          co_await async_write(socket, buffer(data, n));
       }
    }

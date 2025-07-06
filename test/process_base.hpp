@@ -1,4 +1,5 @@
 #include "asio-coro.hpp"
+#include "utils.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
@@ -17,7 +18,7 @@ using namespace ::testing;
 
 // =================================================================================================
 
-class ProcessBase : public testing::Test
+class ProcessBase 
 {
 protected:
    /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
@@ -28,7 +29,8 @@ protected:
     */
    awaitable<void> log(std::string_view prefix, readable_pipe& pipe);
    awaitable<void> sleep(steady_timer::duration timeout);
-   
+
+   /// Returns completion token suitable for testing the result of executing a process.
    auto token()
    {
       return [this](std::exception_ptr ep, int exit_code)
@@ -40,7 +42,7 @@ protected:
             on_exit(exit_code);
       };
    }
-   
+
    MOCK_METHOD(void, on_log, (std::string_view line), ());
    MOCK_METHOD(void, on_error, (error_code ec), ());
    MOCK_METHOD(void, on_exit, (int exit_code), ());
@@ -51,6 +53,7 @@ private:
 protected:
    any_io_executor executor{context.get_executor()};
    void run() { context.run(); }
+   void runDebug() { ::run(context); }
 };
 
 // =================================================================================================
