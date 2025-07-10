@@ -1,6 +1,5 @@
 #include "asio-coro.hpp"
 #include "process_base.hpp"
-#include "utils.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
@@ -12,6 +11,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <print>
 
 using namespace boost::asio;
@@ -24,7 +24,7 @@ using namespace ::testing;
 class Process : public ProcessBase, public testing::Test
 {
 protected:
-   awaitable<int> execute(boost::filesystem::path path, std::vector<std::string> args)
+   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -33,8 +33,7 @@ protected:
       //
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor), err(executor);
-      bp::process child(executor, bp::filesystem::path(path), args,
-                        bp::process_stdio{{}, out, err});
+      bp::process child(executor, path, args, bp::process_stdio{{}, out, err});
 
       //
       // We support all three types of cancellation, total, partial and terminal.
@@ -64,7 +63,7 @@ protected:
 
       //
       // Use async_execute() from boost::process. It supports all three cancellation types 'total',
-      // 'partial' and 'terminal', and transforms them into sending SIGINT, SIGTERM and SIGKILL, 
+      // 'partial' and 'terminal', and transforms them into sending SIGINT, SIGTERM and SIGKILL,
       // respectively.
       //
       auto [ec, exit_status] = co_await bp::async_execute(std::move(child), as_tuple);

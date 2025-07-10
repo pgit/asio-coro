@@ -1,6 +1,5 @@
 #include <boost/asio.hpp>
 
-
 using namespace boost::asio;
 using ip::tcp;
 
@@ -33,12 +32,12 @@ awaitable<void> server(tcp::acceptor a)
 
    for (size_t i = 0;; ++i)
    {
-      auto& context = threads[i % threads.size()].context;
+      auto executor = threads[i % threads.size()].context.get_executor();
       auto socket = co_await a.async_accept();
       auto fd = socket.release();
-      socket = tcp::socket(context);
+      socket = tcp::socket(executor);
       socket.assign(tcp::v4(), fd);
-      co_spawn(context, session(std::move(socket)), detached);
+      co_spawn(executor, session(std::move(socket)), detached);
    }
 }
 

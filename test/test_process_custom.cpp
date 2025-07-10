@@ -24,6 +24,7 @@ using boost::algorithm::join;
 
 // =================================================================================================
 
+/// Configuration for parametrized fixture, see INSTANTIATE_TEST_SUITE_P below.
 struct Escalation
 {
    std::vector<std::string> args;
@@ -34,26 +35,9 @@ struct Escalation
 
 inline void PrintTo(const Escalation& e, std::ostream* os)
 {
-   *os << std::format(("{{{{{}}}, {}, {{{}}}, {}}}"), std::format("{}", join(e.args, ", ")),
-                      e.cancellation_type, std::format("{}", join(e.expectations, ", ")),
-                      e.exit_code);
+   *os << std::format(("{{{{{}}}, {}, {{{}}}, {}}}"), join(e.args, ", "), e.cancellation_type,
+                      join(e.expectations, ", "), e.exit_code);
 }
-
-//
-// There is no builtin support for process groups in Process V2, because it is impossible to
-// implement in a portable way. But for POSIX, we can rely on "process groups" and kill them, taking
-// down any descendant process as well.
-//
-struct setpgid_initializer
-{
-   template <typename Launcher>
-   error_code on_exec_setup(Launcher& launcher, const boost::filesystem::path& executable,
-                            const char* const*(&cmd_line))
-   {
-      setpgid(0, 0);
-      return error_code{};
-   }
-};
 
 // -------------------------------------------------------------------------------------------------
 
@@ -69,13 +53,13 @@ class ProcessCustom : public ProcessBase,
                       public ::testing::WithParamInterface<Escalation>
 {
 protected:
-   awaitable<int> execute(boost::filesystem::path path, std::vector<std::string> args)
+   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor), err(executor);
-      bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{{}, out, err},
+      bp::process child(executor, path, args, bp::process_stdio{{}, out, err},
                         setpgid_initializer{});
 
       //
@@ -107,7 +91,7 @@ protected:
       // cancellation request, we "upgrade" it to 'terminal' and pass that to async_wait().
       //
       cancellation_signal signal;
-      cs.slot().assign([&](auto ct) { signal.emit(cancellation_type::terminal); });
+      cs.slot().assign([&](auto) { signal.emit(cancellation_type::terminal); });
       auto [ec, rc] = co_await child.async_wait(bind_cancellation_slot(signal.slot(), as_tuple));
 
       //
@@ -166,7 +150,7 @@ protected:
 protected:
    auto token()
    {
-      return [this](std::exception_ptr ep, int exit_code)
+      return [this](const std::exception_ptr& ep, int exit_code)
       {
          std::println("spawn: {}, exit_code={}", what(ep), exit_code);
          if (ep)
@@ -190,12 +174,15 @@ protected:
 //
 // This test is disabled because it leaves "sleep" running in background, detached.
 //
-TEST_F(ProcessCustom, DISABLED_WHEN_bash_is_killed_THEN_exits_with_code_9)
+// UPDATE: Not any more -- we are now using setpgid() and killing the whole process group.
+//
+TEST_F(ProcessCustom, WHEN_bash_is_killed_THEN_exits_with_code_9)
 {
    auto coro =
       execute("/usr/bin/bash",
               {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10; echo DONE"});
    co_spawn(executor, std::move(coro), cancel_after(250ms, token()));
+
    EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
    EXPECT_CALL(*this, on_exit(9));
    run();
@@ -206,33 +193,31 @@ TEST_F(ProcessCustom, DISABLED_WHEN_bash_is_killed_THEN_exits_with_code_9)
 //
 // Test signal escalation with various instances of the 'handle_signal' program.
 //
-// SIGINT:
-//   -i0: Exit gracefully when the signal is received for the first time
-//   -i1: Ignore the first time the signal is received and exit gracefully the second time
+// -i0: Exit gracefully when SIGINT is received for the first time
+// -t0: Exit gracefully when SIGTERM is received for the first time
+// -i1: Ignore the first time SIGINT is received and exit gracefully the second time
+// -t1: Ignore the first time SIGTERM is received and exit gracefully the second time
 //
-// SIGTERM:
-//   -t0: Exit gracefully when the signal is received for the first time
-//   -t1: Ignore the first time the signal is received and exit gracefully the second time
+// SIGKILL cannot be ignored.
 //
-// SIGKILL: Cannot be ignored.
+// If no option for SIGINT and/or SIGTERM isspecified, no handlers are installed and the
+// program exits immediately with an appropriate exit status of 2 (SIGINT) or 15 (SIGTERM).
 //
-// If no option for SIGINT and/or SIGTERM isspecified, no handleris installed for the signal  the
-// program exits immediatelly with an appropriate exit status (2 or 15).
-//
+using CT = cancellation_type;
 INSTANTIATE_TEST_SUITE_P(
    // clang-format off
    EscalationCases, ProcessCustom,
    ::testing::Values(
-      Escalation{{},             cancellation_type::total,    {},                     2},
-      Escalation{{"-i0"},        cancellation_type::total,    {"SIGINT"},             0},
-      Escalation{{"-i1"},        cancellation_type::total,    {"SIGINT"},            15},
-      Escalation{{"-i1", "-t0"}, cancellation_type::total,    {"SIGINT", "SIGTERM"},  0},
-      Escalation{{"-i1", "-t1"}, cancellation_type::total,    {"SIGINT", "SIGTERM"},  9},
-      Escalation{{""},           cancellation_type::partial,  {},                    15},
-      Escalation{{"-t0"},        cancellation_type::partial,  {"SIGTERM"},            0},
-      Escalation{{"-t1"},        cancellation_type::partial,  {"SIGTERM"},            9},
-      Escalation{{"-i1", "-t1"}, cancellation_type::terminal, {},                     9},
-      Escalation{{"--timeout", "0ms"}, cancellation_type::terminal, {},               0}
+      Escalation{{},                   CT::total,    {},                    SIGINT},
+      Escalation{{"-i0"},              CT::total,    {"SIGINT"},            0},
+      Escalation{{"-i1"},              CT::total,    {"SIGINT"},            SIGTERM},
+      Escalation{{"-i1", "-t0"},       CT::total,    {"SIGINT", "SIGTERM"}, 0},
+      Escalation{{"-i1", "-t1"},       CT::total,    {"SIGINT", "SIGTERM"}, SIGKILL},
+      Escalation{{""},                 CT::partial,  {},                    SIGTERM},
+      Escalation{{"-t0"},              CT::partial,  {"SIGTERM"},           0},
+      Escalation{{"-t1"},              CT::partial,  {"SIGTERM"},           SIGKILL},
+      Escalation{{"-i1", "-t1"},       CT::terminal, {},                    SIGKILL},
+      Escalation{{"--timeout", "0ms"}, CT::terminal, {},                    0}
    )
    // clang-format on
 );
@@ -243,11 +228,22 @@ TEST_P(ProcessCustom, Escalation)
 {
    const auto& param = GetParam();
 
-   std::vector<std::string> args{"-o0", "build/src/handle_signal"};
+#if 0   
+   //
+   // Use 'stdbuf' to Enable line buffering on STDOUT. Without this, we can't EXPECT any output
+   // before the child process exits, as it may be buffered.
+   //
+   // UPDATE: `handle_signal` now calls `setlinebuf(stdout)`.
+   //
+   std::vector<std::string> args{"-eL", "build/src/handle_signal"};
    args.append_range(param.args);
 
    co_spawn(executor, execute("/usr/bin/stdbuf", args),
             cancel_after(250ms, param.cancellation_type, token()));
+#else
+   co_spawn(executor, execute("build/src/handle_signal", param.args),
+            cancel_after(250ms, param.cancellation_type, token()));
+#endif
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
 
@@ -261,7 +257,6 @@ TEST_P(ProcessCustom, Escalation)
 
    EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(param.exit_code ? 0 : 1);
    EXPECT_CALL(*this, on_exit(param.exit_code));
-
    run();
 }
 

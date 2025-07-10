@@ -72,7 +72,7 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 
    auto executor = co_await this_coro::executor;
    readable_pipe out(executor);
-   bp::process child(executor, bp::filesystem::path(path), args, bp::process_stdio{.out = out});
+   bp::process child(executor, path, args, bp::process_stdio{.out = out});
 
    std::println("execute: communicating...");
    co_await log("STDOUT", out);

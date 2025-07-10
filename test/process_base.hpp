@@ -1,9 +1,6 @@
 #include "asio-coro.hpp"
 #include "utils.hpp"
 
-#include <boost/asio/experimental/promise.hpp>
-#include <boost/asio/experimental/use_promise.hpp>
-
 #include <boost/process/v2/execute.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
@@ -28,14 +25,13 @@ protected:
     * including the trailing incomplete line, if any.
     */
    awaitable<void> log(std::string_view prefix, readable_pipe& pipe);
-   awaitable<void> sleep(steady_timer::duration timeout);
 
    /// Returns completion token suitable for testing the result of executing a process.
    auto token()
    {
-      return [this](std::exception_ptr ep, int exit_code)
+      return [this](const std::exception_ptr& ep, int exit_code)
       {
-         std::println("spawn: {}, exit_code={}", what(ep), exit_code);
+         std::println("execute: {}, exit_code={}", what(ep), exit_code);
          if (ep)
             on_error(code(ep));
          else

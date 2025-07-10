@@ -4,6 +4,8 @@ foreach(src_file ${SRC_FILES})
    add_executable(${exe_name} ${src_file})
 endforeach()
 
+include_directories("../src")
+
 target_link_libraries(process PUBLIC Boost::process)
 target_link_libraries(process_signal PUBLIC Boost::process)
 target_link_libraries(process_timeout PUBLIC Boost::process)

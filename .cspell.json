@@ -1,13 +1,17 @@
 {
     "words": [
+        "ASAN",
         "ASIO",
         "Asynchrony",
         "Awesomest",
         "catched",
         "clangd",
         "coro",
+        "cpptools",
+        "endforeach",
         "EPOLL",
         "fsanitize",
+        "gdbinit",
         "gmock",
         "gtest",
         "libc",

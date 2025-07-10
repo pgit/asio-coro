@@ -16,19 +16,19 @@ class Echo : public testing::Test
 public:
    void SetUp() override
    {
-      acceptor.emplace(context, tcp::endpoint{tcp::v6(), 0});
+      acceptor.emplace(executor, tcp::endpoint{tcp::v6(), 0});
       ASSERT_GT(acceptor->local_endpoint().port(), 0);
 
       //
       // The server is spawned with a 1s timeout -- we expect the client to have connected by then.
       //
-      co_spawn(context, server(), cancel_after(1s, log_exception("server")));
+      co_spawn(executor, server(), cancel_after(1s, log_exception("server")));
 
       //
       // Spawn the client with the local server endpoint. If an exception is thrown within the
       // client, that will be captured by the future.
       //
-      clientFuture = co_spawn(context, client(acceptor->local_endpoint()), use_future);
+      clientFuture = co_spawn(executor, client(acceptor->local_endpoint()), use_future);
    }
 
    awaitable<void> session(tcp::socket socket)
@@ -47,7 +47,7 @@ public:
       {
          auto socket = co_await acceptor->async_accept();
          std::println("connection from {}", socket.remote_endpoint());
-         co_spawn(context, session(std::move(socket)),
+         co_spawn(executor, session(std::move(socket)),
                   [this](std::exception_ptr ep)
                   {
                      std::println("server session: {}", what(ep));
@@ -69,16 +69,12 @@ public:
 
       auto task = test(std::move(socket));
       auto [ep] = co_await co_spawn(executor, std::move(task), cancel_after(timeout, as_tuple));
+
+      // stop the server
       acceptor->cancel();
+
       if (ep)
          std::rethrow_exception(ep);
-   }
-
-   static awaitable<void> sleep(std::chrono::milliseconds duration)
-   {
-      steady_timer timer(co_await this_coro::executor);
-      timer.expires_after(100ms);
-      co_await timer.async_wait();
    }
 
    void run()
@@ -103,6 +99,7 @@ public:
 
 protected:
    io_context context;
+   any_io_executor executor{context.get_executor()};
    std::optional<tcp::acceptor> acceptor;
    std::function<awaitable<void>(tcp::socket socket)> test = noop;
    std::chrono::milliseconds runtime, timeout = 1s;
@@ -115,8 +112,11 @@ private:
 
 TEST_F(Echo, WHEN_no_test_has_been_set_THEN_test_completes)
 {
+   EXPECT_CALL(*this, on_server_session_error(make_error_code(error::misc_errors::eof)));
    run();
 }
+
+// -------------------------------------------------------------------------------------------------
 
 TEST_F(Echo, WHEN_socket_is_shut_down_THEN_test_completes)
 {
@@ -129,18 +129,19 @@ TEST_F(Echo, WHEN_socket_is_shut_down_THEN_test_completes)
    EXPECT_NO_THROW(run());
 }
 
+// -------------------------------------------------------------------------------------------------
+
 TEST_F(Echo, WHEN_client_takes_too_long_THEN_timeout_hits)
 {
    timeout = 100ms;
-   test = [](tcp::socket socket) -> awaitable<void>
-   {
-      co_await sleep(5s);
-   };
+   test = [](tcp::socket socket) -> awaitable<void> { co_await sleep(5s); };
    EXPECT_CALL(*this, on_server_session_error(make_error_code(error::misc_errors::eof)));
-   EXPECT_NO_THROW(run());
+   EXPECT_THROW(run(), system_error);
    EXPECT_GE(runtime, timeout);
    EXPECT_LT(runtime, 1s);
 }
+
+// -------------------------------------------------------------------------------------------------
 
 TEST_F(Echo, WHEN_send_hello_THEN_receive_echo)
 {
@@ -151,7 +152,6 @@ TEST_F(Echo, WHEN_send_hello_THEN_receive_echo)
       socket.shutdown(socket_base::shutdown_send);
 
       std::array<char, 64 * 1024> data;
-      // auto n = co_await socket.async_read_some(buffer(data));
       auto [ec, n] = co_await async_read(socket, buffer(data), as_tuple);
       EXPECT_EQ(ec, asio::error::eof);
       EXPECT_EQ(n, hello.length());
@@ -161,6 +161,8 @@ TEST_F(Echo, WHEN_send_hello_THEN_receive_echo)
    EXPECT_NO_THROW(run());
 }
 
+// -------------------------------------------------------------------------------------------------
+
 TEST_F(Echo, WHEN_send_hello_in_chunks_THEN_receive_echo)
 {
    test = [](tcp::socket socket) -> awaitable<void>
@@ -168,16 +170,13 @@ TEST_F(Echo, WHEN_send_hello_in_chunks_THEN_receive_echo)
       auto executor = co_await this_coro::executor;
 
       const auto hello = "Hello, World!"sv;
-      awaitable<void> sender = co_spawn(
-         executor,
-         [&]() -> awaitable<void>
-         {
-            co_await socket.async_send(buffer(hello.substr(0, 5)));
-            co_await sleep(10ms);
-            co_await socket.async_send(buffer(hello.substr(5)));
-            socket.shutdown(socket_base::shutdown_send);
-         },
-         use_awaitable);
+      auto sender = [&]() -> awaitable<void>
+      {
+         co_await socket.async_send(buffer(hello.substr(0, 5)));
+         co_await sleep(10ms);
+         co_await socket.async_send(buffer(hello.substr(5)));
+         socket.shutdown(socket_base::shutdown_send);
+      };
 
       //
       // In contrast to async_read_some(), async_read() tries to to fill the buffer completely,
@@ -192,10 +191,13 @@ TEST_F(Echo, WHEN_send_hello_in_chunks_THEN_receive_echo)
          EXPECT_EQ(std::string_view(data.data(), n), hello);
       };
 
-      co_await (std::move(sender) && std::move(receiver)());
+      co_await (std::move(sender)() && std::move(receiver)());
    };
+   EXPECT_CALL(*this, on_server_session_error(make_error_code(error::misc_errors::eof)));
    EXPECT_NO_THROW(run());
 }
+
+// -------------------------------------------------------------------------------------------------
 
 TEST_F(Echo, WHEN_socket_closed_THEN_read_fails)
 {

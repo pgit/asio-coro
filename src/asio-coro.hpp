@@ -6,6 +6,8 @@
 
 #include <boost/scope/scope_exit.hpp>
 
+#include <filesystem>
+
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
 using namespace asio;
 using ip::tcp;
@@ -82,6 +84,18 @@ constexpr auto log_exception(std::string prefix)
    };
 }
 
+inline awaitable<void> yield()
+{
+   co_await post(co_await this_coro::executor);
+}
+
+inline awaitable<void> sleep(steady_timer::duration timeout)
+{
+   steady_timer timer(co_await this_coro::executor);
+   timer.expires_after(timeout);
+   co_await timer.async_wait();
+}
+
 // =================================================================================================
 
 namespace std
@@ -94,5 +108,22 @@ concept TestConcept = requires(F f, tcp::socket sock) {
    { f(std::move(sock)) } -> std::same_as<awaitable<void>>;
 };
 
+// =================================================================================================
+
+/**
+ * There is no builtin support for process groups in Process V2, because it is impossible to
+ * implement in a portable way. But for POSIX, we can rely on "process groups" and kill them,
+ * taking down any descendant process as well.
+ */
+struct setpgid_initializer
+{
+   template <typename Launcher>
+   error_code on_exec_setup(Launcher& launcher, const std::filesystem::path& executable,
+                            const char* const*(&cmd_line))
+   {
+      setpgid(0, 0);
+      return error_code{};
+   }
+};
 
 // =================================================================================================

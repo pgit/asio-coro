@@ -11,13 +11,6 @@ using namespace boost::asio::experimental::awaitable_operators;
 
 // =================================================================================================
 
-template <typename T>
-boost::asio::awaitable<void> sleep(T duration)
-{
-   asio::steady_timer timer(co_await asio::this_coro::executor, duration);
-   co_await timer.async_wait(asio::deferred);
-}
-
 using Sleep = void(boost::system::error_code);
 using SleepHandler = asio::any_completion_handler<Sleep>;
 
@@ -509,6 +502,9 @@ TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
 
 // -------------------------------------------------------------------------------------------------
 
+//
+// FIXME: This has address sanitizer errors.
+//
 TEST(Threads, Strand)
 {
    io_context context;

@@ -16,13 +16,18 @@
 
 awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
 {
+   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+
+   std::string buffer;
    auto print = [&](auto line)
    {
-      std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
+      if (buffer.size() == line.size()+1)
+         std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
+      else
+         std::println("{}: \x1b[32m{}\x1b[0m...", prefix, line);
       on_log(line);
    };
 
-   std::string buffer;
    try
    {
       for (;;)
@@ -30,26 +35,24 @@ awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
          auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
          print(std::string_view(buffer).substr(0, n - 1));
          buffer.erase(0, n);
+
+         //
+         // Having a little artificial delay here makes things more interesting for the testcase.
+         // This can easily lead to problems if the log() coroutine is detached, breaking
+         // structured concurrency. We try to provoke that here.
+         //
+         co_await sleep(1ms);
       }
    }
    catch (const system_error& ec)
    {
       for (auto line : split_lines(buffer))
          print(line);
-
       std::println("{}: {}", prefix, ec.code().message());
+      if (ec.code() == error::eof)
+         co_return;
       throw;
    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-awaitable<void> ProcessBase::sleep(steady_timer::duration timeout)
-{
-   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-   steady_timer timer(co_await this_coro::executor);
-   timer.expires_after(timeout);
-   co_await timer.async_wait();
 }
 
 // =================================================================================================

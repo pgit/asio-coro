@@ -27,15 +27,16 @@
 			},
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
-				"ms-vscode.cpptools",
+				"llvm-vs-code-extensions.vscode-clangd",				
+				"matepek.vscode-catch2-test-adapter",
+				"ms-azuretools.vscode-docker",
 				"ms-vscode.cmake-tools",
 				"ms-vscode.cpptools-extension-pack",
-				"llvm-vs-code-extensions.vscode-clangd",				
-				"xaver.clang-format",
-				"vadimcn.vscode-lldb",
+				"ms-vscode.cpptools",
+				"streetsidesoftware.code-spell-checker",
 				"usernamehw.errorlens",
-				"ms-azuretools.vscode-docker",
-				"matepek.vscode-catch2-test-adapter"
+				"vadimcn.vscode-lldb",
+				"xaver.clang-format"
 			]
 			
 		}

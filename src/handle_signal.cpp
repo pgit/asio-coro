@@ -161,6 +161,9 @@ int main(int argc, char* argv[])
    // https://think-async.com/Asio/asio-1.30.2/doc/asio/reference/experimental__make_parallel_group/overload2.html
    make_parallel_group(std::move(ops)).async_wait(wait_for_one(), detached);
 
+   // Enable line buffering so the testcases get to see intermediate output before exiting.
+   setlinebuf(stdout);
+
    //
    // Finally, run IO context.
    //
