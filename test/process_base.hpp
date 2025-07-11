@@ -15,7 +15,7 @@ using namespace ::testing;
 
 // =================================================================================================
 
-class ProcessBase 
+class ProcessBase
 {
 protected:
    /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
@@ -42,6 +42,11 @@ protected:
    MOCK_METHOD(void, on_log, (std::string_view line), ());
    MOCK_METHOD(void, on_error, (error_code ec), ());
    MOCK_METHOD(void, on_exit, (int exit_code), ());
+
+   auto make_system_error(boost::system::errc::errc_t error)
+   {
+      return boost::system::error_code(error, boost::system::system_category());
+   }
 
 private:
    io_context context;

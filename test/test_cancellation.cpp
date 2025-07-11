@@ -26,8 +26,11 @@ class Cancellation : public ProcessBase, public testing::Test
 {
 protected:
    void SetUp() override { EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1)); }
+   void TearDown() override { run(); }
 
-   /// Execute process \p path with given \p args.
+   using ProcessBase::run;
+
+   /// Execute process \p path with given \p args, then runs the awaitable #test.
    awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
@@ -50,72 +53,10 @@ protected:
       co_return co_await test(std::move(out), std::move(child));
    }
 
-   /// Execute process \p path with given \p args, cancelling it after \p timeout with \p ct.
-   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args,
-                          std::chrono::steady_clock::duration timeout, cancellation_type ct)
-   {
-      cancellation_signal signal;
+   /// Returns an awaitable<int> of a coroutine executing a test ping.
+   auto ping() { return execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}); }
 
-      auto executor = co_await this_coro::executor;
-      steady_timer timer(executor);
-      timer.expires_after(timeout);
-      timer.async_wait(
-         [&](error_code ec)
-         {
-            if (!ec)
-               signal.emit(ct);
-         });
-
-      co_return co_await co_spawn(executor, execute(std::move(path), std::move(args)),
-                                  bind_cancellation_slot(signal.slot()));
-   }
-
-   void run(std::filesystem::path path, std::vector<std::string> args,
-            std::optional<std::chrono::steady_clock::duration> timeout = std::nullopt,
-            cancellation_type ct = cancellation_type::terminal)
-   {
-      ASSERT_TRUE(test);
-
-      if (timeout)
-      {
-#if 0
-         co_spawn(executor, execute(std::move(path), std::move(args), *timeout, ct), token());
-#else
-         co_spawn(executor, execute(std::move(path), std::move(args)),
-                  cancel_after(*timeout, ct, token()));
-#endif
-      }
-      else
-         co_spawn(executor, execute(std::move(path), std::move(args)), token());
-
-      run(); // runDebug();
-   }
-
-   //
-   // The default cancellation type is 'terminal', which is the strongest and can leave the
-   // operation in a state that cannot be resumed. What this means for each specific operation
-   // is very different.
-   //
-   // In case of bp::async_execute(), the cancellation types are mapped to the following operations
-   // on the process:
-   //
-   //  cancellation_type  results in      equivalent to sending
-   // ==========================================================
-   //   terminal          terminate()     SIGKILL
-   //   partial           request_exit()  SIGTERM
-   //   total             interrupt()     SIGINT
-   //
-   // In case of ping() here, we default to "SIGINT", which does a graceful shutdown of ping.
-   // SIGTERM and SIGINT kill the process immediately.
-   //
-   void ping(std::optional<std::chrono::steady_clock::duration> timeout = std::nullopt,
-             cancellation_type ct = cancellation_type::total /* --> interrupt() / SIGINT */)
-   {
-      run("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}, timeout, ct);
-   }
-
-   using ProcessBase::run;
-
+   /// The test payload, awaited by execute() after the process has been started.
    std::function<awaitable<int>(readable_pipe out, bp::process child)> test;
 };
 
@@ -142,37 +83,126 @@ TEST_F(Cancellation, Ping)
       std::println("execute: communicating... done");
 
       std::println("execute: waiting for process...");
-      auto exit_code = co_await child.async_wait();
+      auto exit_code = co_await async_execute(std::move(child));
       std::println("execute: waiting for process... done, exit code {}", exit_code);
       co_return exit_code;
    };
 
-   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt")));
    EXPECT_CALL(*this, on_exit(0));
-   ping();
+   co_spawn(executor, ping(), token());
 }
 
-// -------------------------------------------------------------------------------------------------
-
-TEST_F(Cancellation, WHEN_log_is_cancelled_THEN_exception_is_thrown)
+//
+// Equivalent, but using co_spawn() to turn the coroutine into an asynchronous operation.
+// The completion token is the default 'deferred' token, which is awaitable, too.
+//
+TEST_F(Cancellation, PingSpawned)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_await log("STDOUT", out);
-      auto exit_code = co_await child.async_wait();
-      std::println("execute: this code is never executed (exit_code {})", exit_code);
-      ADD_FAILURE();
-      co_return exit_code;
+      co_await co_spawn(executor, log("STDOUT", out));
+      co_return co_await async_execute(std::move(child));
    };
 
-   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
-   EXPECT_CALL(*this, on_exit(_)).Times(0);
-   EXPECT_CALL(*this, on_error(_));
-   ping(150ms);
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt")));
+   EXPECT_CALL(*this, on_exit(0));
+   co_spawn(executor, ping(), token());
 }
 
 // -------------------------------------------------------------------------------------------------
 
+//
+// Next, we start cancelling the ping. Cancellation can be done through the .cancel() operation
+// on the IO object. This is put into a timer with a lambda completion handler.
+//
+TEST_F(Cancellation, CancelPipe)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<int>
+   {
+      steady_timer timer(executor);
+      timer.expires_after(150ms);
+      timer.async_wait(
+         [&](error_code ec)
+         {
+            if (!ec)
+               out.cancel(); // cancel any operation on this IO object
+         });
+
+      co_await co_spawn(executor, log("STDOUT", out));
+      co_return co_await async_execute(std::move(child)); // will not be executed on timeout
+   };
+
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, ping(), token());
+}
+
+//
+// The more flexible, modern approach is to use per-operation cancellation instead of per-object
+// cancellation. For this, you can bind a 'cancellation slot' to a completion token. This is similar
+// to binding an executor or allocator to it.
+//
+// Then, when you want to cancel an operation, you can 'emit' a cancellation signal.
+//
+TEST_F(Cancellation, CancellationSlot)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<int>
+   {
+      cancellation_signal signal;
+      steady_timer timer(executor);
+      timer.expires_after(150ms);
+      timer.async_wait(
+         [&](error_code ec)
+         {
+            if (!ec)
+               signal.emit(cancellation_type::terminal);
+         });
+
+      co_await co_spawn(executor, log("STDOUT", out), bind_cancellation_slot(signal.slot()));
+      co_return co_await async_execute(std::move(child)); // will not be executed on timeout
+   };
+
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, ping(), token());
+}
+
+//
+// Using cancellation slots manually is verbose, so there is a completion token adapter
+// called `cancel_after` that does the same.
+//
+TEST_F(Cancellation, CancelAfter)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<int>
+   {
+      co_await co_spawn(executor, log("STDOUT", out), cancel_after(150ms));
+      co_return co_await async_execute(std::move(child)); // will not be executed on timeout
+   };
+
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, ping(), token());
+}
+
+//
+// For any further testcases in this file, cancel_after() is moved into the fixture.
+//
+TEST_F(Cancellation, CancelFixture)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<int>
+   {
+      co_await co_spawn(executor, log("STDOUT", out));
+      co_return co_await async_execute(std::move(child)); // will not be executed on timeout
+   };
+
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, ping(), cancel_after(150ms, token()));
+}
+
+// -------------------------------------------------------------------------------------------------
+
+//
+// Until now, the cancellation request always reaches the log() coroutine. What if we want to
+// exercise more control over the cancellation process, for example to do some (possibly
+// asynchronous) cleanup?
 //
 // Try to catch the 'operation_cancelled' exception raised from running log().
 // If we do that, the coroutine continues, but the error will be re-thrown on the next co_await.
@@ -189,15 +219,14 @@ TEST_F(Cancellation, WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_awa
       {
          std::println("log completed with error: {}", what(ec.code()));
       }
-      auto exit_code = co_await child.async_wait();
-      std::println("execute: this code is never executed (exit_code {})", exit_code);
+
+      auto exit_code = co_await child.async_wait(); // throws if there was a timeout before
       ADD_FAILURE();
       co_return exit_code;
    };
 
-   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
-   EXPECT_CALL(*this, on_error(_));
-   ping(150ms);
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, ping(), cancel_after(150ms, token()));
 }
 
 //
@@ -208,16 +237,16 @@ TEST_F(Cancellation, WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
       auto [ec] = co_await co_spawn(executor, log("STDOUT", out), as_tuple);
-      std::println("log completed: {}", what(ec));
-      auto exit_code = co_await child.async_wait();
-      std::println("execute: this code is never executed (exit_code {})", exit_code);
+      std::println("log completed with: {}", what(ec));
+
+      auto exit_code = co_await child.async_wait(); // throws if there was a timeout before
       ADD_FAILURE();
       co_return exit_code;
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
-   EXPECT_CALL(*this, on_error(_));
-   ping(150ms);
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, ping(), cancel_after(150ms, token()));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -236,28 +265,30 @@ TEST_F(Cancellation, WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_nex
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
-   ping(150ms);
+   co_spawn(executor, ping(), cancel_after(150ms, token()));
 }
 
 // -------------------------------------------------------------------------------------------------
 
 //
-// Resetting the cancellation state also allows us to re-start the logging coroutine.
+// Resetting the cancellation state also allows us to re-start the log() coroutine.
 //
 TEST_F(Cancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto ec = co_await co_spawn(executor, log("STDOUT", out), as_tuple);
+      co_await co_spawn(executor, log("STDOUT", out), as_tuple);
       co_await this_coro::reset_cancellation_state();
-      co_await log("STDOUT", out);
+      co_await co_spawn(executor, log("STDOUT", out));
       co_return co_await child.async_wait();
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   ping(150ms);
+   co_spawn(executor, ping(), cancel_after(150ms, token()));
 }
+
+// =================================================================================================
 
 TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_pipe_and_segfaults)
 {
@@ -270,11 +301,29 @@ TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_p
    EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
-
-   ping(150ms);
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
-// -------------------------------------------------------------------------------------------------
+// =================================================================================================
+
+//
+// The default cancellation type is 'terminal', which is the strongest and can leave the
+// operation in a state that cannot be resumed. What this means for each specific operation
+// is very different.
+//
+// In case of bp::async_execute(), the cancellation types are mapped to the following operations
+// on the process:
+//
+//  cancellation_type  results in      equivalent to sending
+// ==========================================================
+//   terminal          terminate()     SIGKILL
+//   partial           request_exit()  SIGTERM
+//   total             interrupt()     SIGINT
+//
+// In case of ping() here, we default to "SIGINT", which does a graceful shutdown of ping.
+// SIGTERM and SIGINT kill the process immediately.
+//
+
 
 //
 // std::promise has two very interesting properties:
@@ -289,13 +338,14 @@ TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_started_immediately)
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("PING"))).Times(1);
+
    //
    // We can't expect "rtt" here -- even though the ping will complete gracefully, there is a
    // race condition in the code above, between reading all of the log output and the log()
    // coroutine being cancelled.
    //
    EXPECT_CALL(*this, on_exit(0));
-   ping(150ms);
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
 //
@@ -316,7 +366,7 @@ TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destruction)
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
-   ping();
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -335,7 +385,7 @@ TEST_F(Cancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
    EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   ping(150ms);
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -350,7 +400,7 @@ TEST_F(Cancellation, WHEN_child_is_terminated_THEN_exits_with_sigterm)
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(SIGTERM));
-   ping(150ms, cancellation_type::partial); // --> request_exit() / SIGINT
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::partial, token()));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -371,9 +421,9 @@ TEST_F(Cancellation, WHEN_child_is_killed_THEN_exits_with_sigkill)
    EXPECT_CALL(*this, on_exit(9));
 #else
    // https://github.com/boostorg/process/issues/496
-   EXPECT_CALL(*this, on_error(_));
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::no_child_process)));
 #endif
-   ping(150ms, cancellation_type::terminal); // --> terminate() / SIGKILL
+   co_spawn(executor, ping(), cancel_after(150ms, token()));
 }
 
 // =================================================================================================

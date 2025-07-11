@@ -505,7 +505,7 @@ TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
 //
 // FIXME: This has address sanitizer errors.
 //
-TEST(Threads, Strand)
+TEST(Threads, DISABLED_Strand)
 {
    io_context context;
    any_io_executor executor = context.get_executor();

@@ -21,10 +21,9 @@ awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
    std::string buffer;
    auto print = [&](auto line)
    {
-      if (buffer.size() == line.size()+1)
-         std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
-      else
-         std::println("{}: \x1b[32m{}\x1b[0m...", prefix, line);
+      // print trailing '…' if there is more data in the buffer after this line
+      const auto continuation = (line.size() + 1 == buffer.size()) ? "" : "…";
+      std::println("{}: \x1b[32m{}\x1b[0m{}", prefix, line, continuation);
       on_log(line);
    };
 
