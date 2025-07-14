@@ -2,6 +2,8 @@
 
 #include <boost/asio/error.hpp>
 
+#include <thread>
+
 using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 
@@ -15,7 +17,7 @@ struct ClientConfig
 class Client
 {
 public:
-   Client(ClientConfig config) : config_(std::move(config)) { assert(config_.buffer_size > 0); }
+   explicit Client(ClientConfig config) : config_(config) { assert(config_.buffer_size > 0); }
 
 private:
    /*
@@ -126,50 +128,41 @@ int main()
 {
    Config config;
    io_context context;
+   any_io_executor executor = context.get_executor();
 
    std::vector<Client> clients;
-   std::vector<std::future<size_t>> futures;
    clients.reserve(config.connections);
-   futures.reserve(config.connections);
-   for (size_t i = 0; i < futures.capacity(); ++i)
-   {
-      auto executor = config.extraThreads > 1 ? any_io_executor(make_strand(context))
-                                              : any_io_executor(context.get_executor());
-      clients.emplace_back(ClientConfig{});
-      futures.emplace_back(
-         co_spawn(std::move(executor), clients.back().run("localhost", 55555), use_future));
-   }
+   auto futures =
+      std::views::iota(size_t{0}, clients.capacity()) |
+      std::views::transform(
+         [&, executor](size_t) mutable
+         {
+            if (config.extraThreads > 1)
+               executor = make_strand(executor);
+            clients.emplace_back(ClientConfig{});
+            return co_spawn(executor, clients.back().run("localhost", 55555), as_tuple(use_future));
+         }) |
+      std::ranges::to<std::vector>();
 
    //
    // Finally, run the IO context until there is no pending operation left.
    //
    auto t0 = steady_clock::now();
-   std::vector<std::thread> threads(config.extraThreads);
-   for (auto& thread : threads)
-      thread = std::thread([&]() { context.run(); });
-   context.run();
-   for (auto& thread : threads)
-      thread.join();
+   {
+      auto threads =
+         std::views::iota(size_t{0}, config.extraThreads) |
+         std::views::transform([&](size_t) { return std::jthread([&]() { context.run(); }); }) |
+         std::ranges::to<std::vector>();
+      context.run();
+   }
 
    //
    // Collect results.
    //
+   // https://think-async.com/Asio/asio-1.30.2/doc/asio/reference/experimental__make_parallel_group/overload2.html
    size_t total = 0;
    for (auto& future : futures)
-   {
-      try
-      {
-         total += future.get();
-      }
-      catch (multiple_exceptions& mex)
-      {
-         std::println("{}, first is {}", mex.what(), what(mex.first_exception()));
-      }
-      catch (system_error& ex)
-      {
-         std::println("{}", ex.code().message());
-      }
-   }
+      total += std::get<size_t>(future.get());
 
    auto dt = std::max(1ms, floor<milliseconds>(steady_clock::now() - t0));
    std::println("Total bytes transferred: {} at {} MB/s", Bytes(total),

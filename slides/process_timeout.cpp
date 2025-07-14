@@ -28,7 +28,7 @@ using namespace std::chrono_literals;
 
 // =================================================================================================
 
-/// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
+/// Reads lines from \p pipe and prints them with \p prefix, colored.
 /**
  * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
  * On error while reading from the pipe, any lines in the remaining buffer are printed,

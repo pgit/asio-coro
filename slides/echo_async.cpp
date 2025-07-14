@@ -7,7 +7,7 @@ using ip::tcp;
 class session : public std::enable_shared_from_this<session>
 {
 public:
-   session(tcp::socket socket) : socket_(std::move(socket)) {}
+   explicit session(tcp::socket socket) : socket_(std::move(socket)) {}
    void start() { do_read(); }
 
 private:
@@ -40,7 +40,7 @@ private:
 class server
 {
 public:
-   server(boost::asio::io_context& io_context, tcp::endpoint endpoint)
+   explicit server(boost::asio::io_context& io_context, const tcp::endpoint& endpoint)
       : acceptor_(io_context, endpoint)
    {
       do_accept();
@@ -61,7 +61,7 @@ private:
    tcp::acceptor acceptor_;
 };
 
-int main(int argc, char* argv[])
+int main()
 {
    boost::asio::io_context context;
    server server(context, {tcp::v6(), 55555});

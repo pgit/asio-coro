@@ -16,8 +16,6 @@
 
 awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
 {
-   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-
    std::string buffer;
    auto print = [&](auto line)
    {

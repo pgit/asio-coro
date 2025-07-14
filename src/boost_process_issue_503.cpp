@@ -7,7 +7,7 @@ int main()
 {
    boost::asio::io_context context;
    boost::process::v2::process child(context, "/usr/bin/sleep", {"10"});
-   child.async_wait([](boost::system::error_code ec, int status){
+   child.async_wait([](boost::system::error_code, int status){
       std::cout << status << std::endl;
    });
    child.terminate();  // prints 0 -- should be 9 (SIGKILL)

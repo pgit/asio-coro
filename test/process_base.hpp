@@ -18,7 +18,7 @@ using namespace ::testing;
 class ProcessBase
 {
 protected:
-   /// Reads lines from \p pipe and prints them, colored, with a \p prefix, colored.
+   /// Reads lines from \p pipe and prints them with \p prefix, colored.
    /**
     * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
     * On error while reading from the pipe, any lines in the remaining buffer are printed,
@@ -31,11 +31,16 @@ protected:
    {
       return [this](const std::exception_ptr& ep, int exit_code)
       {
-         std::println("execute: {}, exit_code={}", what(ep), exit_code);
          if (ep)
+         {
+            std::println("execute: {}", what(ep));
             on_error(code(ep));
+         }
          else
+         {
+            std::println("execute: Success, exit_code={}", exit_code);
             on_exit(exit_code);
+         }
       };
    }
 
