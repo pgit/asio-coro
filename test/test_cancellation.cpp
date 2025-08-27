@@ -79,7 +79,7 @@ TEST_F(Cancellation, Ping)
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
       std::println("execute: communicating...");
-      co_await log("STDOUT", out);
+      co_await log(out);
       std::println("execute: communicating... done");
 
       std::println("execute: waiting for process...");
@@ -101,7 +101,7 @@ TEST_F(Cancellation, PingSpawned)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_await co_spawn(executor, log("STDOUT", out));
+      co_await co_spawn(executor, log(out));
       co_return co_await async_execute(std::move(child));
    };
 
@@ -129,7 +129,7 @@ TEST_F(Cancellation, CancelPipe)
                out.cancel(); // cancel any operation on this IO object
          });
 
-      co_await co_spawn(executor, log("STDOUT", out));
+      co_await co_spawn(executor, log(out));
       co_return co_await async_execute(std::move(child)); // will not be executed on timeout
    };
 
@@ -158,7 +158,7 @@ TEST_F(Cancellation, CancellationSlot)
                signal.emit(cancellation_type::terminal);
          });
 
-      co_await co_spawn(executor, log("STDOUT", out), bind_cancellation_slot(signal.slot()));
+      co_await co_spawn(executor, log(out), bind_cancellation_slot(signal.slot()));
       co_return co_await async_execute(std::move(child)); // will not be executed on timeout
    };
 
@@ -174,7 +174,7 @@ TEST_F(Cancellation, CancelAfter)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_await co_spawn(executor, log("STDOUT", out), cancel_after(150ms));
+      co_await co_spawn(executor, log(out), cancel_after(150ms));
       co_return co_await async_execute(std::move(child)); // will not be executed on timeout
    };
 
@@ -189,7 +189,7 @@ TEST_F(Cancellation, CancelFixture)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_await co_spawn(executor, log("STDOUT", out));
+      co_await co_spawn(executor, log(out));
       co_return co_await async_execute(std::move(child)); // will not be executed on timeout
    };
 
@@ -213,7 +213,7 @@ TEST_F(Cancellation, WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_awa
    {
       try
       {
-         co_await log("STDOUT", out);
+         co_await log(out);
       }
       catch (const system_error& ec)
       {
@@ -235,7 +235,7 @@ TEST_F(Cancellation, WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto [ec] = co_await co_spawn(executor, log("STDOUT", out), as_tuple);
+      auto [ec] = co_await co_spawn(executor, log(out), as_tuple);
       std::println("log completed with: {}", what(ec));
       auto exit_code = co_await child.async_wait(); // throws if there was a timeout before
       ADD_FAILURE();
@@ -256,11 +256,11 @@ TEST_F(Cancellation, WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_nex
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto ec = co_await co_spawn(executor, log("STDOUT", out), as_tuple);
+      auto ec = co_await co_spawn(executor, log(out), as_tuple);
       EXPECT_TRUE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
       co_await this_coro::reset_cancellation_state();
       EXPECT_FALSE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
-      co_return co_await child.async_wait();
+      co_return co_await async_execute(std::move(child));
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
@@ -276,10 +276,10 @@ TEST_F(Cancellation, WHEN_throw_if_cancelled_is_set_to_false_THEN_does_not_throw
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto ec = co_await co_spawn(executor, log("STDOUT", out), as_tuple);
+      auto ec = co_await co_spawn(executor, log(out), as_tuple);
       co_await this_coro::throw_if_cancelled(false);
       EXPECT_TRUE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
-      co_return co_await child.async_wait();
+      co_return co_await async_execute(std::move(child));
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
@@ -296,10 +296,10 @@ TEST_F(Cancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_await co_spawn(executor, log("STDOUT", out), as_tuple);
+      co_await co_spawn(executor, log(out), as_tuple);
       co_await this_coro::reset_cancellation_state();
-      co_await co_spawn(executor, log("STDOUT", out));
-      co_return co_await child.async_wait();
+      co_await co_spawn(executor, log(out));
+      co_return co_await async_execute(std::move(child));
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
@@ -326,10 +326,9 @@ TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_p
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_spawn(executor, log("STDOUT", out), detached);
+      co_spawn(executor, log(out), detached);
       co_return co_await async_execute(std::move(child));
    };
-
    EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
@@ -343,13 +342,17 @@ TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_p
 // 1) Similar to the 'detached' completion token, the operation is started eagerly.
 // 2) When the promise is destroyed, the operation is cancelled.
 //
-// This means tht we can use it to enforce 'structured concurrency'.
+// This means tht we can use it to help with 'structured concurrency'.
+//
+// Caveat: Cancelling the operation is not equal to waiting for it's completion: If the
+//         async operation catches the cancellation errors and decides to continue anyway,
+//         that will happen later, after the parent frame has been destroyed.
 //
 TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_started_immediately)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto promise = co_spawn(executor, log("STDOUT", out), use_promise);
+      auto promise = co_spawn(executor, log(out), use_promise);
       co_return co_await async_execute(std::move(child));
    };
 
@@ -375,7 +378,7 @@ TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destruction)
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
       {
-         auto promise = co_spawn(executor, log("STDOUT", out), use_promise);
+         auto promise = co_spawn(executor, log(out), use_promise);
          co_await sleep(50ms);
       }
       EXPECT_CALL(*this, on_log(_)).Times(0);
@@ -390,7 +393,7 @@ TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destruction)
 // -------------------------------------------------------------------------------------------------
 
 //
-// Finally, we have what we want:
+// If we actually wait on the promise, finally, we have what we want:
 // 1) The process is cancelled using SIGINT
 // 2) We can read the remaining output
 // 3) Exit is handled gracefully
@@ -399,7 +402,7 @@ TEST_F(Cancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto promise = co_spawn(executor, log("STDOUT", out), use_promise);
+      auto promise = co_spawn(executor, log(out), use_promise);
       auto [ec, rc] = co_await async_execute(std::move(child), as_tuple);
       co_await this_coro::reset_cancellation_state();
       co_await std::move(promise);
@@ -418,10 +421,9 @@ TEST_F(Cancellation, WHEN_parallel_group_waits_for_all_THEN_output_is_complete)
    {
       auto [order, ep, exit_code, ex] =
          co_await make_parallel_group(async_execute(std::move(child)),
-                                      co_spawn(executor, log("STDOUT", out)))
+                                      co_spawn(executor, log(out)))
             .async_wait(wait_for_all(), deferred);
       co_return exit_code;
-      co_return co_await (async_execute(std::move(child), use_awaitable) && log("STDOUT", out));
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
@@ -430,6 +432,38 @@ TEST_F(Cancellation, WHEN_parallel_group_waits_for_all_THEN_output_is_complete)
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
+TEST_F(Cancellation, WHEN_parallel_group_waits_for_one_error_THEN_output_is_complete)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<int>
+   {
+      auto [order, ep, exit_code, ex] =
+         co_await make_parallel_group(async_execute(std::move(child)), co_spawn(executor, log(out)))
+            .async_wait(wait_for_one_error(), deferred);
+      std::println("order=[{}] ep={} ex={}", order, what(ep), what(ex));
+      co_return exit_code;
+   };
+
+   EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+}
+
+/*
+TEST_F(Cancellation, WHEN_parallel_group_operator_and_THEN_output_is_complete)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<int>
+   {
+      co_return co_await (async_execute(std::move(child), use_awaitable) &&
+                          co_spawn(executor, log(out), use_awaitable));
+   };
+
+   EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_exit(0));
+   co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+}
+*/
 
 // -------------------------------------------------------------------------------------------------
 
@@ -440,7 +474,7 @@ TEST_F(Cancellation, WHEN_child_is_terminated_THEN_exits_with_sigterm)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto promise = co_spawn(executor, log("STDOUT", out), use_promise);
+      auto promise = co_spawn(executor, log(out), use_promise);
       co_return co_await async_execute(std::move(child));
    };
 
@@ -458,7 +492,7 @@ TEST_F(Cancellation, WHEN_child_is_killed_THEN_exits_with_sigkill)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      auto promise = co_spawn(executor, log("STDOUT", out), use_promise);
+      auto promise = co_spawn(executor, log(out), use_promise);
       co_return co_await async_execute(std::move(child));
    };
 

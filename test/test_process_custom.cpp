@@ -53,13 +53,15 @@ class ProcessCustom : public ProcessBase,
                       public ::testing::WithParamInterface<Escalation>
 {
 protected:
+   void TearDown() override { run(); }
+
    awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor), err(executor);
-      bp::process child(executor, path, args, bp::process_stdio{{}, out, err},
+      bp::process child(executor, path, args, bp::process_stdio{.out = out, .err = err},
                         setpgid_initializer{});
 
       //
@@ -146,29 +148,6 @@ protected:
 
       co_return child.exit_code();
    }
-
-protected:
-   auto token()
-   {
-      return [this](const std::exception_ptr& ep, int exit_code)
-      {
-         std::println("spawn: {}, exit_code={}", what(ep), exit_code);
-         if (ep)
-            on_error(code(ep));
-         else
-            on_exit(exit_code);
-      };
-   }
-
-   MOCK_METHOD(void, on_error, (error_code ec), ());
-   MOCK_METHOD(void, on_exit, (int exit_code), ());
-
-private:
-   io_context context;
-
-protected:
-   any_io_executor executor{context.get_executor()};
-   void run() { context.run(); }
 };
 
 //
@@ -185,7 +164,6 @@ TEST_F(ProcessCustom, WHEN_bash_is_killed_THEN_exits_with_code_9)
 
    EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
    EXPECT_CALL(*this, on_exit(9));
-   run();
 }
 
 // =================================================================================================
@@ -233,7 +211,8 @@ TEST_P(ProcessCustom, Escalation)
    // Use 'stdbuf' to Enable line buffering on STDOUT. Without this, we can't EXPECT any output
    // before the child process exits, as it may be buffered.
    //
-   // UPDATE: `handle_signal` now calls `setlinebuf(stdout)`.
+   // UPDATE: 'handle_signal' now calls 'setlinebuf(stdout)'.
+   //         Keeping this as a reference on how to use 'stdbuf'.
    //
    std::vector<std::string> args{"-eL", "build/src/handle_signal"};
    args.append_range(param.args);
@@ -257,7 +236,6 @@ TEST_P(ProcessCustom, Escalation)
 
    EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(param.exit_code ? 0 : 1);
    EXPECT_CALL(*this, on_exit(param.exit_code));
-   run();
 }
 
 // =================================================================================================

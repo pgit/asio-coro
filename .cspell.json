@@ -4,6 +4,7 @@
         "ASIO",
         "Asynchrony",
         "Awesomest",
+        "callgrind",
         "catched",
         "clangd",
         "coro",

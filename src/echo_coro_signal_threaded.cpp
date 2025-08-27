@@ -60,8 +60,8 @@ awaitable<void> server(tcp::acceptor acceptor)
    //
    // Simple busy waiting until all coroutines have finished.
    //
-   // If cancellation takes longer (for example, when doing a gracefull TLS disconnect), this
-   // must be replaced by a better mechnism.
+   // If cancellation takes longer (for example, when doing a graceful TLS disconnect), this
+   // must be replaced by a better mechanism.
    //
    auto lock = std::unique_lock(mutex);
    while (!sockets.empty())

@@ -40,8 +40,8 @@ private:
 class server
 {
 public:
-   explicit server(boost::asio::io_context& io_context, const tcp::endpoint& endpoint)
-      : acceptor_(io_context, endpoint)
+   explicit server(tcp::acceptor acceptor)
+      : acceptor_(std::move(acceptor))
    {
       do_accept();
    }
@@ -64,6 +64,6 @@ private:
 int main()
 {
    boost::asio::io_context context;
-   server server(context, {tcp::v6(), 55555});
+   server server(tcp::acceptor{context, {tcp::v6(), 55555}});
    context.run();
 }

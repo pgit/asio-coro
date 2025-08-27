@@ -3,27 +3,27 @@
 using namespace boost::asio;
 using ip::tcp;
 
-void session(tcp::socket s)
+void session(tcp::socket socket)
 {
    std::array<char, 64 * 1024> data;
    for (;;)
    {
       boost::system::error_code ec;
-      std::size_t n = s.read_some(buffer(data), ec);
+      std::size_t n = socket.read_some(buffer(data), ec);
       if (ec == error::eof)
          return;
-      write(s, buffer(data, n));
+      write(socket, buffer(data, n));
    }
 }
 
-void server(tcp::acceptor a)
+void server(tcp::acceptor acceptor)
 {
    for (;;)
-      session(a.accept());
+      session(acceptor.accept());
 }
 
 int main()
 {
    io_context context;
-   server({context, {tcp::v6(), 55555}});
+   server(tcp::acceptor{context, {tcp::v6(), 55555}});
 }

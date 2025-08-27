@@ -84,10 +84,7 @@ constexpr auto log_exception(std::string prefix)
    };
 }
 
-inline awaitable<void> yield()
-{
-   co_await post(co_await this_coro::executor);
-}
+inline awaitable<void> yield() { co_await post(co_await this_coro::executor); }
 
 inline awaitable<void> sleep(steady_timer::duration timeout)
 {
@@ -100,7 +97,7 @@ inline awaitable<void> sleep(steady_timer::duration timeout)
 
 namespace std
 {
-inline void PrintTo(const std::exception_ptr& ep, std::ostream* os) { *os << what(ep); }
+inline void PrintTo(const std::exception_ptr& ep, std::ostream* os) { *os << what(ep); } // NOLINT
 } // namespace std
 
 template <typename F>
@@ -118,8 +115,7 @@ concept TestConcept = requires(F f, tcp::socket sock) {
 struct setpgid_initializer
 {
    template <typename Launcher>
-   error_code on_exec_setup(Launcher& launcher, const std::filesystem::path& executable,
-                            const char* const*(&cmd_line))
+   error_code on_exec_setup(Launcher&, const std::filesystem::path&, const char* const*(&))
    {
       setpgid(0, 0);
       return error_code{};

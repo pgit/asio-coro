@@ -26,7 +26,7 @@ public:
       t0 = steady_clock::now();
    }
 
-   inline milliseconds runtime() const { return floor<milliseconds>(steady_clock::now() - t0); }
+   milliseconds runtime() const { return floor<milliseconds>(steady_clock::now() - t0); }
 
    milliseconds shutdown()
    {

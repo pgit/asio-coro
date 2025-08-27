@@ -360,7 +360,13 @@ TEST_F(ComposedCoro, AnyFuture)
 
 //
 // Another way to pass the executor to the composed function is to pass the executor as an argument.
-// This is the proper way to implement a free-standing asynchronous operation, see discussion above.
+// But given that binding the executor works as intended (see ComposedCoro.*) I don't see why we
+// would want to it like this.
+//
+// UPDATE: While using the associated executor of the handler for intermediate asynchronous
+//         operations works, it may not be good practice to not have an explicit executor for
+//         the operation in the first place. Usually, with I/O objects, there is an executor
+//         that the async operation can use. 
 //
 class ComposedExecutor : public testing::Test
 {
@@ -472,7 +478,7 @@ TEST_F(ComposedHandler, ComaPoll)
 
 TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
 {
-   io_context context[2];
+   std::array<io_context, 2> context;
 
    auto work = make_work_guard(context[1]);
    auto thread = std::thread([&]() { context[1].run(); });

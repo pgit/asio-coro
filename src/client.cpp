@@ -60,7 +60,7 @@ private:
          if (config_.time)
             co_return co_await co_spawn(executor, std::move(task), cancel_after(*config_.time));
          else
-            co_return co_await co_spawn(executor, std::move(task));
+            co_return co_await std::move(task); // co_spawn(executor, std::move(task));
       }
       catch (system_error& ex)
       {
@@ -137,7 +137,7 @@ int main()
       std::views::transform(
          [&, executor](size_t) mutable
          {
-            if (config.extraThreads > 1)
+            if (config.extraThreads)
                executor = make_strand(executor);
             clients.emplace_back(ClientConfig{});
             return co_spawn(executor, clients.back().run("localhost", 55555), as_tuple(use_future));

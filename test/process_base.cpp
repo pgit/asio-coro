@@ -14,17 +14,18 @@
 
 // =================================================================================================
 
-awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
+awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
 {
    std::string buffer;
    auto print = [&](auto line)
    {
-      // print trailing '…' if there is more data in the buffer after this line
+      // print trailing '…' if there is more data in the buffer after the current line
       const auto continuation = (line.size() + 1 == buffer.size()) ? "" : "…";
       std::println("{}: \x1b[32m{}\x1b[0m{}", prefix, line, continuation);
       on_log(line);
    };
 
+   auto cs = co_await this_coro::cancellation_state;
    try
    {
       for (;;)
@@ -43,6 +44,8 @@ awaitable<void> ProcessBase::log(std::string_view prefix, readable_pipe& pipe)
    }
    catch (const system_error& ec)
    {
+      if (cs.cancelled() != cancellation_type::none)
+         std::println("CANCELLED");
       for (auto line : split_lines(buffer))
          print(line);
       std::println("{}: {}", prefix, ec.code().message());
