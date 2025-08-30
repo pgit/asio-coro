@@ -2,7 +2,7 @@
 # https://github.com/microsoft/vscode-dev-containers/tree/main/containers/debian
 # https://github.com/pgit/cpp-devcontainer
 #
-FROM docker.io/psedoc/cpp-devcontainer:0.15
+FROM docker.io/psedoc/cpp-devcontainer:0.16
 
 #
 # GDB libc++ pretty printer (works for string, but not for map with llvm-17)
