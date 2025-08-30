@@ -1,7 +1,9 @@
 #include "asio-coro.hpp"
 
 #include <boost/asio/error.hpp>
+#include <boost/program_options.hpp> // Add this include
 
+#include <iostream>
 #include <thread>
 
 using std::chrono::milliseconds;
@@ -103,8 +105,14 @@ public:
       auto flags = ip::tcp::resolver::numeric_service;
       auto endpoints = co_await resolver.async_resolve(host, std::to_string(port), flags);
 
+      auto range = endpoints | std::views::transform([](const auto& x)
+                                                     { return std::format("{}", x.endpoint()); });
+      // auto range = endpoints | std::views::transform([](const auto& x) { return x.endpoint(); });
+      // std::println("endpoints: {}", range);
+
       ip::tcp::socket socket(executor);
       auto endpoint = co_await asio::async_connect(socket, endpoints);
+      std::println("connected to: {}", endpoint);
 
       // std::println("connected to {}", socket.remote_endpoint());
 
@@ -119,30 +127,64 @@ public:
 
 struct Config
 {
-   size_t connections = 5;
+   std::string host = "localhost";
+   uint16_t port = 55555;
+   size_t connections = 1;
    size_t extraThreads = 0;
    std::chrono::milliseconds duration = 3s;
 };
 
-int main()
+int main(int argc, char* argv[])
 {
+   namespace po = boost::program_options;
+
    Config config;
+
+   // Define and parse command line options
+   po::options_description desc("Allowed options");
+   desc.add_options()("help,h", "produce help message");
+   desc.add_options()("host,h", po::value<std::string>(&config.host)->default_value("localhost"),
+                      "host to connect to");
+   desc.add_options()("port,p", po::value<uint16_t>(&config.port)->default_value(55555),
+                      "port number");
+   desc.add_options()("connections,c", po::value<size_t>(&config.connections)->default_value(1),
+                      "number of connections");
+   desc.add_options()("extraThreads,t", po::value<size_t>(&config.extraThreads)->default_value(0),
+                      "number of extra threads");
+
+   po::variables_map vm;
+   try
+   {
+      po::store(po::parse_command_line(argc, argv, desc), vm);
+      po::notify(vm);
+   }
+   catch (const po::error& ex)
+   {
+      std::cerr << "Command line error: " << ex.what() << std::endl;
+      return 1;
+   }
+   if (vm.count("help"))
+   {
+      desc.print(std::cout);
+      return 1;
+   }
+
    io_context context;
    any_io_executor executor = context.get_executor();
 
    std::vector<Client> clients;
    clients.reserve(config.connections);
-   auto futures =
-      std::views::iota(size_t{0}, clients.capacity()) |
-      std::views::transform(
-         [&, executor](size_t) mutable
-         {
-            if (config.extraThreads)
-               executor = make_strand(executor);
-            clients.emplace_back(ClientConfig{});
-            return co_spawn(executor, clients.back().run("localhost", 55555), as_tuple(use_future));
-         }) |
-      std::ranges::to<std::vector>();
+   auto futures = std::views::iota(size_t{0}, clients.capacity()) |
+                  std::views::transform(
+                     [&, executor](size_t) mutable
+                     {
+                        if (config.extraThreads)
+                           executor = make_strand(executor);
+                        clients.emplace_back(ClientConfig{});
+                        return co_spawn(executor, clients.back().run(config.host, config.port),
+                                        as_tuple(use_future));
+                     }) |
+                  std::ranges::to<std::vector>();
 
    //
    // Finally, run the IO context until there is no pending operation left.
@@ -159,10 +201,14 @@ int main()
    //
    // Collect results.
    //
-   // https://think-async.com/Asio/asio-1.30.2/doc/asio/reference/experimental__make_parallel_group/overload2.html
    size_t total = 0;
    for (auto& future : futures)
-      total += std::get<size_t>(future.get());
+   {
+      auto [ec, bytes] = future.get();
+      total += bytes;
+      if (ec)
+         std::println("ERROR: {}", what(ec));
+   }
 
    auto dt = std::max(1ms, floor<milliseconds>(steady_clock::now() - t0));
    std::println("Total bytes transferred: {} at {} MB/s", Bytes(total),
