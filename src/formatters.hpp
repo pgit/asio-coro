@@ -47,25 +47,44 @@ struct std::formatter<ip::tcp::endpoint> : std::formatter<std::string>
    }
 };
 
+// -------------------------------------------------------------------------------------------------
+
 template <>
 struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view>
 {
    auto format(asio::cancellation_type type, auto& ctx) const
    {
       using ct = asio::cancellation_type;
-      switch (type)
-      {
-      case ct::none:
+      using enum ct;
+
+      auto out = ctx.out();
+      if (type == none)
          return std::formatter<std::string_view>::format("none", ctx);
-      case ct::terminal:
-         return std::formatter<std::string_view>::format("terminal", ctx);
-      case ct::partial:
-         return std::formatter<std::string_view>::format("partial", ctx);
-      case ct::total:
-         return std::formatter<std::string_view>::format("total", ctx);
-      default:
-         return std::formatter<std::string_view>::format("unknown", ctx);
-      }
+
+      if (type == all)
+         return std::formatter<std::string_view>::format("all", ctx);
+
+      bool first = true;
+      auto append_if = [&](asio::cancellation_type flag, std::string_view name)
+      {
+         if ((type & flag) == flag)
+         {
+            std::format_to(out, "{}{}", first ? "" : "|", name);
+            first = false;
+            type = type & ~flag;
+         }
+      };
+
+      append_if(terminal, "terminal");
+      append_if(partial, "partial");
+      append_if(total, "total");
+
+      if (type != none)
+         std::format_to(ctx.out(), "{}0x{:x}", first ? "" : "|", to_underlying(type));
+      else if (first)
+         std::format_to(ctx.out(), "none");
+
+      return out;
    }
 };
 
@@ -77,9 +96,8 @@ inline auto split_lines(std::string_view lines)
    if (lines.ends_with('\n'))
       lines.remove_suffix(1);
 
-   return lines | std::views::split('\n') | std::views::transform([](auto range){
-      return std::string_view(range);
-   });
+   return lines | std::views::split('\n') |
+          std::views::transform([](auto range) { return std::string_view(range); });
 }
 
 // =================================================================================================
