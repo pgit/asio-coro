@@ -1,4 +1,4 @@
-// https://github.com/boostorg/process/issues/503
+// https://github.com/boostorg/process/issues/503, fixed in Boost 1.89
 #include <boost/asio.hpp>
 #include <boost/process/v2/process.hpp>
 #include <iostream>
