@@ -93,7 +93,12 @@ protected:
       // cancellation request, we "upgrade" it to 'terminal' and pass that to async_wait().
       //
       cancellation_signal signal;
-      cs.slot().assign([&](auto) { signal.emit(cancellation_type::terminal); });
+      cs.slot().assign(
+         [&](auto type)
+         {
+            std::println("execute: CANCELLED ({})", type);
+            signal.emit(cancellation_type::terminal);
+         });
       auto [ec, rc] = co_await child.async_wait(bind_cancellation_slot(signal.slot(), as_tuple));
 
       //

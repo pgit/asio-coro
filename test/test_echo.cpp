@@ -85,7 +85,7 @@ public:
       ::run(context);
       auto t1 = steady_clock::now();
       this->runtime = floor<milliseconds>(t1 - t0);
-      clientFuture.get(); // may throw, to be catched by EXPECT_THROW(...)
+      clientFuture.get(); // may throw, to be caught by EXPECT_THROW(...)
    }
 
    template <TestConcept Test>

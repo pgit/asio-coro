@@ -118,7 +118,7 @@ struct setpgid_initializer
    error_code on_exec_setup(Launcher&, const std::filesystem::path&, const char* const*(&))
    {
       setpgid(0, 0);
-      return error_code{};
+      return {};
    }
 };
 

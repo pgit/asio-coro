@@ -52,19 +52,19 @@ awaitable<void> subtask(Resource& resource)
    //
    // We need to be very careful when catching exceptions or, equivalently, using a non-throwing
    // completion token adaptor like as_tuple<>. In this situation, the coroutine is resumed after
-   // the cancellation. At that time, the parent coroutine and anything passed as a reference is
-   // invalid.
+   // the cancellation. At that time, the parent coroutine and anything passed as a reference
+   // may be invalid.
    //
    auto ec = co_await timer.async_wait(bind_cancellation_slot(signal.slot(), as_tuple));
    
    //
    // Entering danger zone. We have been cancelled, but decided to ignore this and continue
-   // running. We cannot rely on anything passed to us by reference any more.
+   // running. We cannot rely on anything passed by reference any more.
    //
    // This compiles and *might* run. With clang and libc++, ASAN doesn't detect this either,
    // UNLESS two tasks() are started in a parallel group.
    //
-   assert(!resource.alive); // might compile and run, but is undefined behaviour
+   assert(resource.alive); // might compile and run, but is undefined behaviour
 #else
    try
    {
@@ -72,7 +72,7 @@ awaitable<void> subtask(Resource& resource)
    }
    catch (const boost::system::system_error& ex)
    {
-      assert(!resource.alive); // might compile and run, but is undefined behaviour
+      assert(resource.alive); // might compile and run, but is undefined behaviour
    }
 #endif
 }
@@ -81,7 +81,12 @@ awaitable<void> task()
 {
    Resource resource;
    auto promise = co_spawn(co_await this_coro::executor, subtask(resource), use_promise);
-   // when leaving this coroutine, the promise is deleted and subtask() is cancelled
+   promise.cancel();
+   
+   // only by waiting for the coroutine again, we give it a chance to complete gracefully
+   co_await std::move(promise);
+
+   // in the end, something like an "async scope" is missing here for proper structured concurrency
 }
 
 int main()

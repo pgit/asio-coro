@@ -2,24 +2,21 @@
     "words": [
         "ASAN",
         "ASIO",
-        "Asynchrony",
-        "Awesomest",
-        "callgrind",
-        "catched",
-        "clangd",
+        "bashhistory",
+        "btop",
+        "commandhistory",
         "coro",
-        "cpptools",
-        "endforeach",
         "EPOLL",
         "fsanitize",
         "gdbinit",
-        "gmock",
-        "gtest",
+        "HISTFILE",
+        "iputils",
         "libc",
-        "socat",
+        "libcxx",
+        "noninteractive",
+        "psedoc",
         "stdlib",
         "TSAN",
-        "URING",
-        "Watchlist"
+        "uring"
     ]
 }

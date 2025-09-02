@@ -50,11 +50,15 @@ protected:
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor);
       bp::process child(executor, path, args, bp::process_stdio{.out = out});
+
+      //
+      // Finally, run the test payload.
+      //
       co_return co_await test(std::move(out), std::move(child));
    }
 
    /// Returns an awaitable<int> of a coroutine executing a test ping.
-   auto ping() { return execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}); }
+   awaitable<int> ping() { return execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}); }
 
    /// The test payload, awaited by execute() after the process has been started.
    std::function<awaitable<int>(readable_pipe out, bp::process child)> test;
@@ -83,7 +87,7 @@ TEST_F(Cancellation, Ping)
       std::println("execute: communicating... done");
 
       std::println("execute: waiting for process...");
-      auto exit_code = co_await async_execute(std::move(child));
+      auto exit_code = co_await child.async_wait();
       std::println("execute: waiting for process... done, exit code {}", exit_code);
       co_return exit_code;
    };
@@ -97,12 +101,15 @@ TEST_F(Cancellation, Ping)
 // Equivalent, but using co_spawn() to turn the coroutine into an asynchronous operation.
 // The completion token is the default 'deferred' token, which is awaitable, too.
 //
+// This example is for exposition only. There is no real reason to use co_spawn() here with the
+// `deferred` completion token co_await, because we can await log() directly.
+//
 TEST_F(Cancellation, PingSpawned)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
       co_await co_spawn(executor, log(out));
-      co_return co_await async_execute(std::move(child));
+      co_return co_await child.async_wait();
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt")));
@@ -129,8 +136,9 @@ TEST_F(Cancellation, CancelPipe)
                out.cancel(); // cancel any operation on this IO object
          });
 
-      co_await co_spawn(executor, log(out));
-      co_return co_await async_execute(std::move(child)); // will not be executed on timeout
+      // co_await co_spawn(executor, log(out));
+      co_await log(out);
+      co_return co_await child.async_wait(); // will not be executed on timeout
    };
 
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
@@ -183,7 +191,8 @@ TEST_F(Cancellation, CancelAfter)
 }
 
 //
-// We can also apply the timeout to the top level coroutine.
+// We can also apply the timeout to the top level coroutine. it will be forwarded to the innermost
+// currently active coroutine and any asynchronous operations within.
 //
 TEST_F(Cancellation, CancelFixture)
 {
@@ -420,9 +429,9 @@ TEST_F(Cancellation, WHEN_parallel_group_waits_for_all_THEN_output_is_complete)
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
       auto [order, ep, exit_code, ex] =
-         co_await make_parallel_group(async_execute(std::move(child)),
-                                      co_spawn(executor, log(out)))
+         co_await make_parallel_group(async_execute(std::move(child)), co_spawn(executor, log(out)))
             .async_wait(wait_for_all(), deferred);
+      std::println("order=[{}] ep={} ex={}", order, what(ep), what(ex));
       co_return exit_code;
    };
 
@@ -437,7 +446,8 @@ TEST_F(Cancellation, WHEN_parallel_group_waits_for_one_error_THEN_output_is_comp
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
       auto [order, ep, exit_code, ex] =
-         co_await make_parallel_group(async_execute(std::move(child)), co_spawn(executor, log(out)))
+         co_await make_parallel_group(async_execute(std::move(child)),
+                                      co_spawn(executor, log(out))) //
             .async_wait(wait_for_one_error(), deferred);
       std::println("order=[{}] ep={} ex={}", order, what(ep), what(ex));
       co_return exit_code;
@@ -449,21 +459,49 @@ TEST_F(Cancellation, WHEN_parallel_group_waits_for_one_error_THEN_output_is_comp
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
-/*
 TEST_F(Cancellation, WHEN_parallel_group_operator_and_THEN_output_is_complete)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<int>
    {
-      co_return co_await (async_execute(std::move(child), use_awaitable) &&
-                          co_spawn(executor, log(out), use_awaitable));
+      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+      auto cs = co_await this_coro::cancellation_state;
+#if 1
+      cancellation_signal term;
+      cancellation_signal signal;
+      cs.slot().assign(
+         [&](auto type)
+         {
+            std::println("CANCELLED: {}", type);
+            signal.emit(cancellation_type::total);
+            term.emit(cancellation_type::total);
+         });
+#endif
+      std::println("CANCELLED: {} (before operation)", cs.cancelled());
+      // co_await async_execute(std::move(child)); // ok
+      // auto status = co_await async_execute(std::move(child), use_awaitable); // ok
+      // co_return co_await async_execute(std::move(child), bind_cancellation_slot(signal.slot(),
+      // use_awaitable)); co_return co_await (
+      //    async_execute(std::move(child), bind_cancellation_slot(signal.slot(), use_awaitable)) &&
+      //    co_spawn(executor, log(out), use_awaitable));
+      // co_await co_spawn(executor,
+      // boost::asio::experimental::awaitable_operators::detail::awaitable_wrap(async_execute(std::move(child),
+      // use_awaitable)));
+      auto awaitable =
+         (async_execute(std::move(child), bind_cancellation_slot(term.slot(), use_awaitable)) &&
+          log("STDOUT", out));
+      auto status =
+         co_await co_spawn(executor, std::move(awaitable), bind_cancellation_slot(signal.slot()));
+      std::println("CANCELLED: {}", cs.cancelled());
+      co_return status;
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   // co_spawn(executor, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}),
+   //          cancel_after(150ms, cancellation_type::total, token()));
 }
-*/
 
 // -------------------------------------------------------------------------------------------------
 

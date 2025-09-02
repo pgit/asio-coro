@@ -60,7 +60,7 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 
    auto executor = co_await this_coro::executor;
    readable_pipe out(executor);
-   bp::process child(executor, path, args, bp::process_stdio{{}, out, {}}, setpgid_initializer{});
+   bp::process child(executor, path, args, bp::process_stdio{.out = out}, setpgid_initializer{});
 
    signal_set sigint(executor, SIGINT);
    sigint.async_wait(
@@ -81,9 +81,9 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
    // Wait for process to finish and retrieve exit code.
    //
    std::println("execute: waiting for process...");
-   co_await child.async_wait();
-   std::println("execute: waiting for process... done, exit code {}", child.exit_code());
-   co_return child.exit_code();
+   auto exit_code = co_await child.async_wait();
+   std::println("execute: waiting for process... done, exit code {}", exit_code);
+   co_return exit_code;
 }
 
 int main()

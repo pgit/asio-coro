@@ -24,6 +24,10 @@ class Asio : public testing::Test
 
 // -------------------------------------------------------------------------------------------------
 
+/**
+ * Simple, self-contained example that shows that "work" is tracked across coroutines automatically.
+ * If it wasn't, running the IO context would complete before the timer finished.
+ */
 TEST_F(Asio, WHEN_task_is_spawned_THEN_work_is_tracked)
 {
    boost::asio::io_context context;
@@ -86,8 +90,8 @@ class ComposedAny : public testing::Test
 
 public:
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
-   static inline auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
-                                  CompletionToken&& token)
+   static auto async_sleep(boost::asio::any_io_executor ex, Duration duration,
+                           CompletionToken&& token)
    {
       return boost::asio::async_initiate<CompletionToken, Sleep>(async_sleep_impl, token,
                                                                  std::move(ex), duration);
@@ -366,7 +370,7 @@ TEST_F(ComposedCoro, AnyFuture)
 // UPDATE: While using the associated executor of the handler for intermediate asynchronous
 //         operations works, it may not be good practice to not have an explicit executor for
 //         the operation in the first place. Usually, with I/O objects, there is an executor
-//         that the async operation can use. 
+//         that the async operation can use.
 //
 class ComposedExecutor : public testing::Test
 {

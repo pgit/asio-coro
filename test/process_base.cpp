@@ -45,12 +45,15 @@ awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
    catch (const system_error& ec)
    {
       if (cs.cancelled() != cancellation_type::none)
-         std::println("CANCELLED");
+         std::println("{}: CANCELLED ({})", prefix, cs.cancelled());
+
       for (auto line : split_lines(buffer))
          print(line);
+
       std::println("{}: {}", prefix, ec.code().message());
       if (ec.code() == error::eof)
          co_return;
+
       throw;
    }
 }

@@ -70,8 +70,9 @@ protected:
       std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), exit_status);
       if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
       {
+#if BOOST_VERSION < 108900
          exit_status = SIGKILL; // work around https://github.com/boostorg/process/issues/503
-
+#endif
          //
          // The pipes may still be open if any descendant of the child process has inherited the
          // writing ends. For example, this happens when running a sleep command inside bash.
