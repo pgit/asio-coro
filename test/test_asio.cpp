@@ -3,11 +3,14 @@
 
 #include <gtest/gtest.h>
 
+#include <boost/scope/scope_exit.hpp>
+
 #include <print>
 #include <thread>
 
 using namespace std::chrono_literals;
 using namespace boost::asio::experimental::awaitable_operators;
+using boost::scope::make_scope_exit;
 
 // =================================================================================================
 
@@ -58,6 +61,95 @@ TEST_F(Asio, WHEN_task_is_finished_THEN_sets_future)
       asio::use_future);
    ::run(context);
    EXPECT_TRUE(future.get());
+}
+
+// ================================================================================================
+
+TEST_F(Asio, FunctionsAreEager)
+{
+   auto result = []() -> int { return 42; }();
+   EXPECT_EQ(result, 42);
+}
+
+TEST_F(Asio, CoroutinesAreLazy)
+{
+   auto awaitable = []() -> asio::awaitable<int>
+   {
+      ADD_FAILURE() << "this coroutine is never awaited and thus should not be executed";
+      co_return 42;
+   }();
+}
+
+// ================================================================================================
+
+//
+// https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rcoro-capture
+//
+TEST_F(Asio, WHEN_get_awaitable_from_lambda_THEN_closure_is_destroyed)
+{
+   static bool closure = true;
+   auto scope_exit = make_scope_exit([] { closure = false; });
+   EXPECT_TRUE(closure);
+   auto awaitable = [xit = std::move(scope_exit)]() -> asio::awaitable<void>
+   {
+      ADD_FAILURE() << "this coroutine is never awaited and thus should not be executed";
+      co_return;
+   }();
+   EXPECT_FALSE(closure);
+}
+
+TEST_F(Asio, WHEN_spawn_lambda_awaitable_THEN_closure_is_deleted)
+{
+   static bool closure = true;
+   auto scope_exit = make_scope_exit([] { closure = false; });
+   boost::asio::io_context context;
+   auto future = co_spawn(
+      context.get_executor(),
+      [xit = std::move(scope_exit)]() -> asio::awaitable<int>
+      {
+         EXPECT_FALSE(closure);
+         co_return 42;
+      }(),
+      asio::use_future);
+   ::run(context);
+   EXPECT_EQ(future.get(), 42);
+}
+
+TEST_F(Asio, WHEN_await_lambda_awaitable_THEN_closure_is_kept_alive_by_full_expression)
+{
+   boost::asio::io_context context;
+   auto future = co_spawn(
+      context.get_executor(),
+      []() -> asio::awaitable<int>
+      {
+         static bool closure = true;
+         auto scope_exit = make_scope_exit([] { closure = false; });
+         co_return co_await [xit = std::move(scope_exit)]() -> asio::awaitable<int>
+         {
+            EXPECT_TRUE(closure);
+            co_return 42;
+         }();
+      }(),
+      asio::use_future);
+   ::run(context);
+   EXPECT_EQ(future.get(), 42);
+}
+
+TEST_F(Asio, WHEN_spawn_lambda_THEN_closure_is_kept_alive)
+{
+   static bool closure = true;
+   auto scope_exit = make_scope_exit([] { closure = false; });
+   boost::asio::io_context context;
+   auto future = co_spawn(
+      context.get_executor(),
+      [xit = std::move(scope_exit)]() -> asio::awaitable<int>
+      {
+         EXPECT_TRUE(closure);
+         co_return 42;
+      },
+      asio::use_future);
+   ::run(context);
+   EXPECT_EQ(future.get(), 42);
 }
 
 // =================================================================================================
