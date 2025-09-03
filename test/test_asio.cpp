@@ -373,7 +373,7 @@ public:
 
                auto thread_id = std::this_thread::get_id();
                std::println("waiting in thread {}...", thread_id);
-               co_await asio::steady_timer(ex, duration).async_wait(asio::deferred);
+               co_await asio::steady_timer(ex, duration).async_wait();
                if (thread_id == std::this_thread::get_id())
                   std::println("waiting in thread {}... done", thread_id);
                else
@@ -588,12 +588,12 @@ TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
       {
          EXPECT_EQ(std::this_thread::get_id(), this_thread_id);
 
-         co_await post(context[1], bind_executor(context[1], use_awaitable));
+         co_await post(context[1], bind_executor(context[1]));
          EXPECT_EQ(std::this_thread::get_id(), other_thread_id);
 
-         co_await post(context[0], bind_executor(context[0], use_awaitable));
+         co_await post(context[0], bind_executor(context[0]));
          EXPECT_EQ(std::this_thread::get_id(), this_thread_id);
-      },
+      }, // do NOT invoke the lambda here, let co_spawn do that -- it keeps the closure alive
       detached);
 
    context[0].run();
@@ -605,9 +605,13 @@ TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
 // -------------------------------------------------------------------------------------------------
 
 //
-// FIXME: This has address sanitizer errors.
+// This test had address sanitizer errors, until the ()) invoking the lambda passed to co_spawn
+// was removed. This is CP.51, see testcases
 //
-TEST(Threads, DISABLED_Strand)
+//   WHEN_spawn_lambda_awaitable_THEN_closure_is_deleted vs.
+//   WHEN_spawn_lambda_THEN_closure_is_kept_alive.
+//
+TEST(Threads, Strand)
 {
    io_context context;
    any_io_executor executor = context.get_executor();
@@ -627,7 +631,7 @@ TEST(Threads, DISABLED_Strand)
          {
             co_await post(executor, bind_executor(strand));
             counter++;
-         }(),
+         }, // do NOT invoke the lambda here, let co_spawn do that -- it keeps the closure alive
          detached);
 
    work.reset();

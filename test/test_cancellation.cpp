@@ -269,7 +269,7 @@ TEST_F(Cancellation, WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_nex
       EXPECT_TRUE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
       co_await this_coro::reset_cancellation_state();
       EXPECT_FALSE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
-      co_return co_await async_execute(std::move(child));
+      co_return co_await child.async_wait();
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
@@ -288,7 +288,7 @@ TEST_F(Cancellation, WHEN_throw_if_cancelled_is_set_to_false_THEN_does_not_throw
       auto ec = co_await co_spawn(executor, log(out), as_tuple);
       co_await this_coro::throw_if_cancelled(false);
       EXPECT_TRUE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
-      co_return co_await async_execute(std::move(child));
+      co_return co_await child.async_wait();
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
@@ -308,7 +308,7 @@ TEST_F(Cancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
       co_await co_spawn(executor, log(out), as_tuple);
       co_await this_coro::reset_cancellation_state();
       co_await co_spawn(executor, log(out));
-      co_return co_await async_execute(std::move(child));
+      co_return co_await child.async_wait();
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
