@@ -25,12 +25,48 @@ awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
       on_log(line);
    };
 
+   using enum cancellation_type;
+#if 1
+   auto filter = terminal | partial; // | total;
+   co_await this_coro::reset_cancellation_state(
+      [&, filter](cancellation_type type)
+      {
+         auto filtered = type & filter;
+         if (filtered == none)
+            std::println("FILTER({}): {} -> \x1b[1;31m{}\x1b[0m", filter, type, filtered);
+         else
+            std::println("FILTER({}): {} -> {}", filter, type, filtered);
+         return  filtered;
+      });
+#else // should be equivalent
+   co_await this_coro::reset_cancellation_state(enable_partial_cancellation());
+#endif
+
    auto cs = co_await this_coro::cancellation_state;
+#if 0
+   std::println("cs.slot().has_handler(): {}", cs.slot().has_handler());
+   std::println("slot.is_connected(): {}", cs.slot().is_connected());
+   cancellation_signal signal;
+   if (cs.slot().is_connected())
+      cs.slot().assign(
+         [&](cancellation_type type)
+         {
+            std::println("XXXX CANCELLED: {}", type);
+            signal.emit(type);
+         });
+#endif
+
    try
    {
       for (;;)
       {
+         // async_read_until() supports terminal and partial, but not total cancellation
+#if 0
+         auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n',
+                                            bind_cancellation_slot(signal.slot()));
+#else
          auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
+#endif
          print(std::string_view(buffer).substr(0, n - 1));
          buffer.erase(0, n);
 
@@ -39,7 +75,7 @@ awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
          // This can easily lead to problems if the log() coroutine is detached, breaking
          // structured concurrency. We try to provoke that here.
          //
-         co_await sleep(1ms);
+         // co_await sleep(1ms);
       }
    }
    catch (const system_error& ec)

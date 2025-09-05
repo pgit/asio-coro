@@ -3,14 +3,14 @@
 
 #include <gtest/gtest.h>
 
-#include <boost/scope/scope_exit.hpp>
+#include <boost/asio/experimental/promise.hpp>
+#include <boost/asio/experimental/use_promise.hpp>
 
 #include <print>
 #include <thread>
 
 using namespace std::chrono_literals;
 using namespace boost::asio::experimental::awaitable_operators;
-using boost::scope::make_scope_exit;
 
 // =================================================================================================
 
@@ -18,139 +18,6 @@ using Sleep = void(boost::system::error_code);
 using SleepHandler = asio::any_completion_handler<Sleep>;
 
 using Duration = std::chrono::nanoseconds;
-
-// =================================================================================================
-
-class Asio : public testing::Test
-{
-};
-
-// -------------------------------------------------------------------------------------------------
-
-/**
- * Simple, self-contained example that shows that "work" is tracked across coroutines automatically.
- * If it wasn't, running the IO context would complete before the timer finished.
- */
-TEST_F(Asio, WHEN_task_is_spawned_THEN_work_is_tracked)
-{
-   boost::asio::io_context context;
-   bool ok = false;
-   co_spawn(
-      context.get_executor(),
-      [&]() -> asio::awaitable<void>
-      {
-         co_await sleep(100ms);
-         ok = true;
-         co_return;
-      },
-      asio::detached);
-   ::run(context);
-   EXPECT_TRUE(ok);
-}
-
-TEST_F(Asio, WHEN_task_is_finished_THEN_sets_future)
-{
-   boost::asio::io_context context;
-   auto future = co_spawn(
-      context.get_executor(),
-      [&]() -> asio::awaitable<bool>
-      {
-         co_await sleep(100ms);
-         co_return true;
-      },
-      asio::use_future);
-   ::run(context);
-   EXPECT_TRUE(future.get());
-}
-
-// ================================================================================================
-
-TEST_F(Asio, FunctionsAreEager)
-{
-   auto result = []() -> int { return 42; }();
-   EXPECT_EQ(result, 42);
-}
-
-TEST_F(Asio, CoroutinesAreLazy)
-{
-   auto awaitable = []() -> asio::awaitable<int>
-   {
-      ADD_FAILURE() << "this coroutine is never awaited and thus should not be executed";
-      co_return 42;
-   }();
-}
-
-// ================================================================================================
-
-//
-// https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rcoro-capture
-//
-TEST_F(Asio, WHEN_get_awaitable_from_lambda_THEN_closure_is_destroyed)
-{
-   static bool closure = true;
-   auto scope_exit = make_scope_exit([] { closure = false; });
-   EXPECT_TRUE(closure);
-   auto awaitable = [xit = std::move(scope_exit)]() -> asio::awaitable<void>
-   {
-      ADD_FAILURE() << "this coroutine is never awaited and thus should not be executed";
-      co_return;
-   }();
-   EXPECT_FALSE(closure);
-}
-
-TEST_F(Asio, WHEN_spawn_lambda_awaitable_THEN_closure_is_deleted)
-{
-   static bool closure = true;
-   auto scope_exit = make_scope_exit([] { closure = false; });
-   boost::asio::io_context context;
-   auto future = co_spawn(
-      context.get_executor(),
-      [xit = std::move(scope_exit)]() -> asio::awaitable<int>
-      {
-         EXPECT_FALSE(closure);
-         co_return 42;
-      }(),
-      asio::use_future);
-   ::run(context);
-   EXPECT_EQ(future.get(), 42);
-}
-
-TEST_F(Asio, WHEN_await_lambda_awaitable_THEN_closure_is_kept_alive_by_full_expression)
-{
-   boost::asio::io_context context;
-   auto future = co_spawn(
-      context.get_executor(),
-      []() -> asio::awaitable<int>
-      {
-         static bool closure = true;
-         auto scope_exit = make_scope_exit([] { closure = false; });
-         co_return co_await [xit = std::move(scope_exit)]() -> asio::awaitable<int>
-         {
-            EXPECT_TRUE(closure);
-            co_return 42;
-         }();
-      }(),
-      asio::use_future);
-   ::run(context);
-   EXPECT_EQ(future.get(), 42);
-}
-
-TEST_F(Asio, WHEN_spawn_lambda_THEN_closure_is_kept_alive)
-{
-   static bool closure = true;
-   auto scope_exit = make_scope_exit([] { closure = false; });
-   boost::asio::io_context context;
-   auto future = co_spawn(
-      context.get_executor(),
-      [xit = std::move(scope_exit)]() -> asio::awaitable<int>
-      {
-         EXPECT_TRUE(closure);
-         co_return 42;
-      },
-      asio::use_future);
-   ::run(context);
-   EXPECT_EQ(future.get(), 42);
-}
 
 // =================================================================================================
 
@@ -189,6 +56,18 @@ public:
                                                                  std::move(ex), duration);
    }
 };
+
+TEST_F(ComposedAny, WHEN_async_op_is_deferred_THEN_is_lazy)
+{
+   boost::asio::io_context context;
+   co_spawn(context, []() -> awaitable<void>{
+      auto deferred = async_sleep(co_await this_coro::executor, 100ms, asio::experimental::use_promise);
+      co_await yield();
+      co_await std::move(deferred);
+      co_return;
+   }, detached);
+   ::run(context);
+}
 
 TEST_F(ComposedAny, WHEN_async_op_is_initiated_THEN_tracks_work)
 {
@@ -611,26 +490,39 @@ TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
 //   WHEN_spawn_lambda_awaitable_THEN_closure_is_deleted vs.
 //   WHEN_spawn_lambda_THEN_closure_is_kept_alive.
 //
+// Note that using strands like this, when a lot of synchronization is required (here, for each
+// single increment), is very inefficient. Even the atomic<size_t> approach is one magnitude faster.
+//
 TEST(Threads, Strand)
 {
    io_context context;
    any_io_executor executor = context.get_executor();
    auto work = make_work_guard(executor);
-   auto strand = make_strand(executor);
 
    std::array<std::thread, 10> threads;
    for (auto& thread : threads)
       thread = std::thread([&]() { context.run(); });
 
+#if 1
+   auto strand = make_strand(executor);
    size_t counter = 0;
-   constexpr size_t N = 100;
+#else
+   auto strand = executor;
+   std::atomic<size_t> counter = 0;
+#endif
+
+   constexpr size_t N = 100, C = 100;
    for (size_t i = 0; i < N; ++i)
       co_spawn(
          executor,
-         [&]() -> awaitable<void>
+         [&, i]() -> awaitable<void>
          {
-            co_await post(executor, bind_executor(strand));
-            counter++;
+            for (size_t u = 0; u < C; ++u)
+            {
+               co_await post(executor, bind_executor(strand));
+               // std::println("{} {} {}", i, u, std::this_thread::get_id());
+               counter++;
+            }
          }, // do NOT invoke the lambda here, let co_spawn do that -- it keeps the closure alive
          detached);
 
@@ -639,7 +531,7 @@ TEST(Threads, Strand)
    for (auto& thread : threads)
       thread.join();
 
-   EXPECT_EQ(counter, N);
+   EXPECT_EQ(counter, N * C);
 }
 
 // =================================================================================================

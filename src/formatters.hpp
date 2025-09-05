@@ -57,7 +57,6 @@ struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view
       using ct = asio::cancellation_type;
       using enum ct;
 
-      auto out = ctx.out();
       if (type == none)
          return std::formatter<std::string_view>::format("none", ctx);
 
@@ -69,7 +68,7 @@ struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view
       {
          if ((type & flag) == flag)
          {
-            std::format_to(out, "{}{}", first ? "" : "|", name);
+            std::format_to(ctx.out(), "{}{}", first ? "" : "|", name);
             first = false;
             type = type & ~flag;
          }
@@ -84,7 +83,7 @@ struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view
       else if (first)
          std::format_to(ctx.out(), "none");
 
-      return out;
+      return ctx.out();
    }
 };
 

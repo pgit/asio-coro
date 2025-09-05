@@ -9,6 +9,8 @@
         "EPOLL",
         "fsanitize",
         "gdbinit",
+        "gmock",
+        "gtest",
         "HISTFILE",
         "iputils",
         "libc",

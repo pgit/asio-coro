@@ -47,7 +47,7 @@ inline std::string what(const error_code ec) { return ec.message(); }
 inline std::string what(const std::exception_ptr& ptr)
 {
    if (!ptr)
-      return "success";
+      return "Success(ep)";
    else
    {
       try

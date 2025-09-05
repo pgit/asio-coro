@@ -55,7 +55,7 @@ class ProcessCustom : public ProcessBase,
 protected:
    void TearDown() override { run(); }
 
-   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
+   awaitable<ExitCode> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -110,7 +110,7 @@ protected:
       co_await this_coro::reset_cancellation_state();
 
       //
-      // escalate: [[SIGINT -->] SIGTERM -->] SIGKILL
+      // escalate: [[SIGINT -->] SIGTERM -->] SIGKILL, waiting one second at each '-->'
       //
       if ((cancelled & cancellation_type::total) != cancellation_type::none)
       {
@@ -132,10 +132,13 @@ protected:
 
       if ((cancelled & cancellation_type::terminal) != cancellation_type::none)
       {
-         // std::println("execute: terminating...");
-         // child.terminate();
+#if 0
+         std::println("execute: terminating...");
+         child.terminate();
+#else
          std::println("execute: terminating... (PGID={})", child.native_handle());
          ::kill(-child.native_handle(), SIGKILL); // kill process group
+#endif
          co_await child.async_wait(as_tuple);
          co_return 9;
       }

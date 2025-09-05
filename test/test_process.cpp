@@ -24,7 +24,7 @@ using namespace ::testing;
 class Process : public ProcessBase, public testing::Test
 {
 protected:
-   awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args)
+   awaitable<ExitCode> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
 
@@ -33,7 +33,7 @@ protected:
       //
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor), err(executor);
-      bp::process child(executor, path, args, bp::process_stdio{{}, out, err});
+      bp::process child(executor, path, args, bp::process_stdio{{}, out, err}); // , setpgid_initializer{});
 
       //
       // We support all three types of cancellation, total, partial and terminal.
@@ -82,7 +82,7 @@ protected:
          //
          // Another option is to kill the whole process group (using the PGID), but that requires
          // 1) a custom initializer for calling setpgid(0, 0) and
-         // 2) ::kill(-PID) to kill the group instead of only the process.
+         // 2) ::kill(-PGID) to kill the group instead of only the process.
          // See the custom process handling tests for an example of this.
          //
          error_code ignore;

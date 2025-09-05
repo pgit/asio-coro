@@ -6,7 +6,9 @@
 		"dockerfile": "Dockerfile",
 		"args": { }
 	},
-	// "runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
+
+	// This may be needed for TSAN builds
+	"runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined" ],
 
 	"customizations": {
 		"vscode": {

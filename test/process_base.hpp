@@ -15,6 +15,8 @@ using namespace ::testing;
 
 // =================================================================================================
 
+using ExitCode = std::optional<int>;
+
 class ProcessBase
 {
 protected:
@@ -34,17 +36,23 @@ protected:
    /// Returns completion token suitable for testing the result of executing a process.
    auto token()
    {
-      return [this](const std::exception_ptr& ep, int exit_code)
+      return [this](const std::exception_ptr& ep, ExitCode exit_code)
       {
          if (ep)
          {
+            assert(!exit_code); // on error, we should have a default-constructed exit_code
             std::println("execute: {}", what(ep));
             on_error(code(ep));
          }
+         else if (!exit_code)
+         {
+            assert(false); // no test should explicitly complete with std::nullopt
+            std::println("execute: Success, but without exit code");
+         }
          else
          {
-            std::println("execute: Success, exit_code={}", exit_code);
-            on_exit(exit_code);
+            std::println("execute: Success, exit_code={}", *exit_code);
+            on_exit(*exit_code);
          }
       };
    }
