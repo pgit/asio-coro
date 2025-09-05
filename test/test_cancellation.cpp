@@ -427,48 +427,16 @@ TEST_F(Cancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
-static awaitable<int> enable_total(bp::process&& child)
-{
-#if 1
-   using enum cancellation_type;
-   auto filter = terminal | partial | total;
-   co_await this_coro::reset_cancellation_state(
-      [&, filter](cancellation_type type)
-      {
-         auto filtered = type & filter;
-         if (filtered == none)
-            std::println("ENABLE TOTAL({}): {} -> \x1b[1;31m{}\x1b[0m", filter, type, filtered);
-         else
-            std::println("ENABLE TOTAL({}): {} -> {}", filter, type, filtered);
-         return filtered;
-      });
-#endif
-   co_return co_await async_execute(std::move(child));
-}
-
 TEST_F(Cancellation, WHEN_parallel_group_waits_for_all_THEN_output_is_complete)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
-      using awaitable_operators::detail::awaitable_wrap;
       auto [order, ec, exit_code, ep] =
-#if 1
-         co_await make_parallel_group( // on 'total' cancellation, ...
-                                       // co_spawn(executor,
-                                       // awaitable_wrap(async_execute(std::move(child),
-                                       // use_awaitable)), deferred), co_spawn(executor,
-                                       // async_execute(std::move(child), use_awaitable)), //
-                                       // doesn't cancel
-            async_execute(std::move(child), deferred), // OK
-            // co_spawn(executor, enable_total(std::move(child))), // OK
-            co_spawn(executor, log(out), deferred)
-#else
          co_await make_parallel_group( // on 'total' cancellation, ...
             async_execute(std::move(child)), // ... sends SIGINT and waits for process and
             co_spawn(executor, log(out)) // ... ignores the cancellation signal
-#endif
-               )
-            .async_wait(wait_for_all(), deferred);
+            )
+            .async_wait(wait_for_one_error(), deferred);
       std::println("order=[{}] ec={} ex={}", order, what(ec), what(ep));
       co_return exit_code;
    };
@@ -496,21 +464,25 @@ TEST_F(Cancellation, WHEN_parallel_group_waits_for_one_error_THEN_output_is_comp
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
+static awaitable<ExitCode> async_execute_wrapped(bp::process&& child)
+{
+   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+   co_return co_await async_execute(std::move(child));
+}
+
 TEST_F(Cancellation, WHEN_parallel_group_operator_and_THEN_cancellation_fails)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto cs = co_await this_coro::cancellation_state;
-      auto awaitable = (async_execute(std::move(child), use_awaitable) && log(out));
-      // auto awaitable = async_execute(std::move(child), use_awaitable);  // OK, is cancelled
-      // auto awaitable = co_spawn(executor, async_execute(std::move(child), use_awaitable)); //
-      // FAIL
+      // auto awaitable = (async_execute(std::move(child), use_awaitable) && log(out)); // FAILS
+      auto awaitable = (async_execute_wrapped(std::move(child)) && log(out));
       auto status = co_await (std::move(awaitable));
       std::println("CANCELLED: {}", cs.cancelled());
       co_return status;
    };
 
-   EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(1);
+   EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
