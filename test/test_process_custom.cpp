@@ -116,7 +116,7 @@ protected:
       {
          std::println("execute: interrupting...");
          child.interrupt(); // sends SIGINT
-         std::tie(ec, rc) = co_await child.async_wait(cancel_after(1s, as_tuple));
+         std::tie(ec, rc) = co_await child.async_wait(cancel_after(250ms, as_tuple));
          if (ec == boost::system::errc::operation_canceled)
             cancelled = cancellation_type::partial;
       }
@@ -125,7 +125,7 @@ protected:
       {
          std::println("execute: requesting exit...");
          child.request_exit(); // sends SIGTERM
-         std::tie(ec, rc) = co_await child.async_wait(cancel_after(1s, as_tuple));
+         std::tie(ec, rc) = co_await child.async_wait(cancel_after(250ms, as_tuple));
          if (ec == boost::system::errc::operation_canceled)
             cancelled = cancellation_type::terminal;
       }
