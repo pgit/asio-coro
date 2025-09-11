@@ -24,6 +24,7 @@ awaitable<void> sleep(steady_timer::duration timeout)
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(timeout);
    co_await timer.async_wait();
+   std::println("TIMEOUT");
 }
 
 // Custom validator for duration option

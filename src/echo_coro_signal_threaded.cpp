@@ -21,6 +21,9 @@ awaitable<void> server(tcp::acceptor acceptor)
    signals.async_wait(
       [&](error_code error, auto signum)
       {
+         if (error == boost::system::errc::operation_canceled)
+            return;
+
          std::println(" INTERRUPTED (signal {})", signum);
          acceptor.cancel();
          auto lock = std::lock_guard(mutex);
@@ -62,6 +65,8 @@ awaitable<void> server(tcp::acceptor acceptor)
    //
    // If cancellation takes longer (for example, when doing a graceful TLS disconnect), this
    // must be replaced by a better mechanism.
+   //
+   // TODO: Consider use_promise.
    //
    auto lock = std::unique_lock(mutex);
    while (!sockets.empty())

@@ -18,6 +18,7 @@ cmake --build build --target all -- && build/slides/echo_coro
 To test, use `socat`:
 ```bash
 socat STDIN TCP-CONNECT:[::1]:55555
+socat STDIN,raw,echo=0,icrnl,crlf,escape=0x03 TCP:[::1]:55555
 ```
 
 To test echo speed, you can use `netcat` like this:

@@ -16,7 +16,9 @@
         "libc",
         "libcxx",
         "noninteractive",
+        "Nullary",
         "psedoc",
+        "socat",
         "stdlib",
         "TSAN",
         "uring"
