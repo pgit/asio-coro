@@ -1,16 +1,16 @@
-# Overview
-This is a collection of samples for using C++20 coroutines with ASIO.
+# ASIO & CORO
+This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/doc/libs/1_87_0/doc/html/boost_asio.html).
 
 [![Build and run tests](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml)
 
-# Development Devcontainer
+## Development Devcontainer
 This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in [GitHub Codespaces](https://github.com/features/codespaces). The container image is based on [CPP Devcontainer](https://github.com/pgit/cpp-devcontainer), which contains recent LLVM and Boost versions.
 
 After opening the project in the container, press `F7` to compile using CMake. On first startup, the CMake Plugin will ask you for a kit, select `[Unspecified]` or `clang` (the latter may take some time to appear, when scanning has finished).
 
 After that, you can open a `*.cpp` file. This workspace is configured to use the [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd) plugin for syntax highlighting and indexing. That may take a while to complete, watch the `indexing 1/20` in the status bar. You may have to run the command `clangd: Restart language server` once for it to pick up on changes to `build/compile_commands.json`.
 
-# Echo Servers
+## Echo Servers
 There are several implementations of TCP echo servers in this project, for demonstration purposes.
 
 ```bash
