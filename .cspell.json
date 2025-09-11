@@ -4,6 +4,7 @@
         "ASIO",
         "bashhistory",
         "btop",
+        "Buildx",
         "commandhistory",
         "coro",
         "EPOLL",

@@ -2,7 +2,18 @@
 # https://github.com/microsoft/vscode-dev-containers/tree/main/containers/debian
 # https://github.com/pgit/cpp-devcontainer
 #
-FROM docker.io/psedoc/cpp-devcontainer:0.17
+FROM docker.io/psedoc/cpp-devcontainer:0.17 AS ci-base
+
+#
+# Install 'ping' used by Process.* tests
+#
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
+    apt-get -y upgrade && \
+    apt-get -y install iputils-ping tmux btop && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+FROM ci-base
 
 #
 # GDB libc++ pretty printer (works for string, but not for map with llvm-17)
@@ -26,15 +37,6 @@ RUN cd /home/${USERNAME} && \
     echo >>.gdbinit "source /home/${USERNAME}/asio-debugger-extensions/gdb/awaitable_backtrace.py" && \
     echo >>.gdbinit "source /home/${USERNAME}/asio-debugger-extensions/gdb/pretty_printer.py" && \
     chown $USERNAME .gdbinit
-
-#
-# Install 'ping' used by Process.* tests
-#
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
-    apt-get -y upgrade && \
-    apt-get -y install iputils-ping tmux btop && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
 #
 # Customize Environment
