@@ -13,6 +13,12 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# --------------------------------------------------------------------------------------------------
+
+#
+# Target 'ci-base' is used in automated GitHub workflows. It contains only the packages needed to
+# run the tests, but none of the extra steps below for a convenient interactive devcontainer.
+#
 FROM ci-base
 
 #
@@ -70,5 +76,7 @@ ARG USERNAME=vscode
 COPY .tmux.conf /home/${USERNAME}/.tmux.conf
 COPY .bash_aliases /home/${USERNAME}/.bash_aliases
 RUN chown $USERNAME:$USERNAME /home/${USERNAME}/.tmux.conf /home/${USERNAME}/.bash_aliases
+
+# --------------------------------------------------------------------------------------------------
 
 SHELL ["/bin/bash", "-c"]
