@@ -132,49 +132,51 @@ protected:
       //
       if (ec && (cancelled & total) == total)
       {
-         std::println("execute: interrupting...");
+         std::println("execute: interrupting (SIGINT)...");
          child.interrupt(ec); // sends SIGINT, ignore error
          std::tie(ec, rc) = co_await child.async_wait(cancel_after(1s, as_tuple));
-         std::println("execute: interrupting... {}", what(ec));
+         std::println("execute: interrupting (SIGINT)... {}", what(ec));
       }
 
       if (ec && (cancelled & partial) == partial)
       {
-         std::println("execute: requesting exit...");
+         std::println("execute: requesting exit (SIGTERM)...");
          child.request_exit(ec); // sends SIGTERM, ignore error
          std::tie(ec, rc) = co_await child.async_wait(cancel_after(1s, as_tuple));
-         std::println("execute: requesting exit... {}", what(ec));
+         std::println("execute: requesting exit (SIGTERM)... {}", what(ec));
       }
 
       if (ec && (cancelled & terminal) == terminal)
       {
 #if 0
-         std::println("execute: terminating");
+         std::println("execute: terminating (SIGKILL)...");
          child.terminate(ec); // sends SIGKILL, ignore error
 #else
-         std::println("execute: terminating (PGID={})", child.native_handle());
+         std::println("execute: terminating (SIGKILL, PGID={})...", child.native_handle());
          ::kill(-child.native_handle(), SIGKILL); // kill process group
 #endif
+         std::tie(ec, rc) = co_await child.async_wait(as_tuple);
+         std::println("execute: requesting exit (SIGTERM)... {}", what(ec));
 #if BOOST_VERSION < 108900
-         std::ignore = co_await child.async_wait(as_tuple);
-         co_return 9;
-#else
-         co_return co_await child.async_wait();
+         rc = SIGKILL; // https://github.com/boostorg/process/issues/503
 #endif
       }
 
       //
       // Wait for process to finish.
       //
-      std::println("execute: waiting for process...");
-      co_await child.async_wait(as_tuple);
-      std::println("execute: waiting for process... done, exit code {}", child.exit_code());
+      if (ec)
+      {
+         std::println("execute: waiting for process...");
+         std::tie(ec, rc) = co_await child.async_wait(as_tuple);
+         std::println("execute: waiting for process... done, exit code {}", rc);
+      }
 
       std::println("execute: waiting for remaining output...");
       co_await std::move(promise);
       std::println("execute: waiting for remaining output... done");
 
-      co_return child.exit_code();
+      co_return rc;
    }
 };
 

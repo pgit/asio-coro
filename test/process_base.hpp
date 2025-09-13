@@ -46,8 +46,8 @@ protected:
          }
          else if (!exit_code)
          {
-            assert(false); // no test should explicitly complete with std::nullopt
             std::println("execute: Success, but without exit code");
+            assert(false); // no test should explicitly complete with std::nullopt
          }
          else
          {
