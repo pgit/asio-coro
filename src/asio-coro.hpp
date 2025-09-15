@@ -42,6 +42,7 @@ inline error_code code(const std::exception_ptr& ptr)
       }
    }
 }
+
 inline std::string what(const error_code ec) { return ec.message(); }
 
 inline std::string what(const std::exception_ptr& ptr)

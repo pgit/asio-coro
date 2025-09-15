@@ -47,13 +47,12 @@ public:
       {
          auto socket = co_await acceptor->async_accept();
          std::println("connection from {}", socket.remote_endpoint());
-         co_spawn(executor, session(std::move(socket)),
-                  [this](std::exception_ptr ep)
-                  {
-                     std::println("server session: {}", what(ep));
-                     if (ep)
-                        on_server_session_error(code(ep));
-                  });
+         co_spawn(executor, session(std::move(socket)), [this](const std::exception_ptr& ep)
+         {
+            std::println("server session: {}", what(ep));
+            if (ep)
+               on_server_session_error(code(ep));
+         });
       }
    }
 
@@ -86,13 +85,6 @@ public:
       auto t1 = steady_clock::now();
       this->runtime = floor<milliseconds>(t1 - t0);
       clientFuture.get(); // may throw, to be caught by EXPECT_THROW(...)
-   }
-
-   template <TestConcept Test>
-   void run(Test test)
-   {
-      this->test = std::move(test);
-      run();
    }
 
    static awaitable<void> noop(tcp::socket) { co_return; }

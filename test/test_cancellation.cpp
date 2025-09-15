@@ -151,12 +151,11 @@ TEST_F(Cancellation, CancelPipe)
    {
       steady_timer timer(executor);
       timer.expires_after(150ms);
-      timer.async_wait(
-         [&](error_code ec)
-         {
-            if (!ec)
-               out.cancel(); // cancel any operation on this IO object
-         });
+      timer.async_wait([&](error_code ec)
+      {
+         if (!ec)
+            out.cancel(); // cancel any operation on this IO object
+      });
 
       // co_await co_spawn(executor, log(out));
       co_await log(out);
@@ -181,12 +180,11 @@ TEST_F(Cancellation, CancellationSlot)
       cancellation_signal signal;
       steady_timer timer(executor);
       timer.expires_after(150ms);
-      timer.async_wait(
-         [&](error_code ec)
-         {
-            if (!ec)
-               signal.emit(cancellation_type::terminal);
-         });
+      timer.async_wait([&](error_code ec)
+      {
+         if (!ec)
+            signal.emit(cancellation_type::terminal);
+      });
 
       co_await co_spawn(executor, log(out), bind_cancellation_slot(signal.slot()));
       co_return co_await child.async_wait(); // will not be executed on timeout
@@ -578,11 +576,10 @@ TEST_F(Cancellation, WHEN_child_is_killed_THEN_exits_with_sigkill)
    };
 
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
-#if BOOST_VERSION >= 108900
-   EXPECT_CALL(*this, on_exit(9));
-#else
-   // https://github.com/boostorg/process/issues/496
+#if BOOST_VERSION < 108900
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::no_child_process)));
+#else
+   EXPECT_CALL(*this, on_exit(9)); // https://github.com/boostorg/process/issues/503
 #endif
    co_spawn(executor, ping(), cancel_after(150ms, token()));
 }

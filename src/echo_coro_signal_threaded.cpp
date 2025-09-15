@@ -18,19 +18,17 @@ awaitable<void> server(tcp::acceptor acceptor)
 
    auto executor = co_await this_coro::executor;
    signal_set signals(executor, SIGINT, SIGTERM);
-   signals.async_wait(
-      [&](error_code error, auto signum)
-      {
-         if (error == boost::system::errc::operation_canceled)
-            return;
+   signals.async_wait([&](error_code ec, auto signum)
+   {
+      if (ec == boost::system::errc::operation_canceled)
+         return;
 
-         std::println(" INTERRUPTED (signal {})", signum);
-         acceptor.cancel();
-         auto lock = std::lock_guard(mutex);
-         for (auto& socket : sockets)
-            socket.second.cancel();
-      });
-
+      std::println(" INTERRUPTED (signal {})", signum);
+      acceptor.cancel();
+      auto lock = std::lock_guard(mutex);
+      for (auto& socket : sockets)
+         socket.second.cancel();
+   });
 
    //
    // Main accept loop. For each new connection, record the socket in a map for cancellation.
@@ -48,14 +46,12 @@ awaitable<void> server(tcp::acceptor acceptor)
       auto lock = std::lock_guard(mutex);
       auto [it, inserted] = sockets.emplace(id, std::move(socket));
       std::println("number of active sessions: {}", sockets.size());
-      co_spawn(executor, session(it->second),
-               [&, id](std::exception_ptr ep)
-               {
-                  auto lock = std::lock_guard(mutex);
-                  sockets.erase(id);
-                  std::println("session {} finished: {}, {} sessions left", id, what(ep),
-                               sockets.size());
-               });
+      co_spawn(executor, session(it->second), [&, id](const std::exception_ptr& ep)
+      {
+         auto lock = std::lock_guard(mutex);
+         sockets.erase(id);
+         std::println("session {} finished: {}, {} sessions left", id, what(ep), sockets.size());
+      });
    }
 
    std::println("-----------------------------------------------------------------------------");

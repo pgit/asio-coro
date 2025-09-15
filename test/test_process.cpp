@@ -24,6 +24,15 @@ using namespace ::testing;
 class Process : public ProcessBase, public testing::Test
 {
 protected:
+   //
+   // Running the IO context as late as in the TearDown() function works fine if we set all
+   // expectations before. We only have to be careful not to capture any local variables from
+   // the testcase body.
+   //
+   // However, if a testcase really needs to do that, it can call run() manually.
+   //
+   void TearDown() override { run(); }
+
    awaitable<ExitCode> execute(std::filesystem::path path, std::vector<std::string> args)
    {
       std::println("execute: {} {}", path.generic_string(), join(args, " "));
@@ -33,7 +42,7 @@ protected:
       //
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor), err(executor);
-      bp::process child(executor, path, args, bp::process_stdio{{}, out, err}); // , setpgid_initializer{});
+      bp::process child(executor, path, args, bp::process_stdio{.out = out, .err = err});
 
       //
       // We support all three types of cancellation, total, partial and terminal.
@@ -44,7 +53,7 @@ protected:
       // (bp::async_execute). The default is to support terminal cancellation only.
       //
       co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-      auto cs = (co_await this_coro::cancellation_state);
+      auto cs = co_await this_coro::cancellation_state;
 
       //
       // Reading from the pipe is done as a background task, so it is not affected by the
@@ -106,7 +115,6 @@ TEST_F(Process, WHEN_ping_is_started_THEN_completes_gracefully)
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_log(HasSubstr("rtt")));
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 TEST_F(Process, WHEN_multiple_pings_are_started_THEN_all_of_them_complete_gracefully)
@@ -118,7 +126,6 @@ TEST_F(Process, WHEN_multiple_pings_are_started_THEN_all_of_them_complete_gracef
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(N);
    EXPECT_CALL(*this, on_exit(0)).Times(N);
-   run();
 }
 
 //
@@ -133,7 +140,6 @@ TEST_F(Process, DISABLED_Top)
    co_spawn(executor, execute("/usr/bin/top", {}), cancel_after(10s, token()));
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_exit(SIGKILL)); // 9
-   run();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -147,7 +153,6 @@ TEST_F(Process, WHEN_ping_is_cancelled_terminal_THEN_is_terminated)
    EXPECT_CALL(*this, on_log(HasSubstr("PING")));
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(SIGKILL)); // 9
-   run();
 }
 
 TEST_F(Process, WHEN_ping_is_cancelled_partial_THEN_exists_with_code_15)
@@ -157,7 +162,6 @@ TEST_F(Process, WHEN_ping_is_cancelled_partial_THEN_exists_with_code_15)
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_exit(SIGTERM)); // 15
-   run();
 }
 
 TEST_F(Process, WHEN_ping_is_cancelled_total_THEN_exists_gracefully)
@@ -168,7 +172,6 @@ TEST_F(Process, WHEN_ping_is_cancelled_total_THEN_exists_gracefully)
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -191,7 +194,8 @@ TEST_F(Process, WHEN_custom_cancellation_slot_is_emitted_THEN_process_is_cancell
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   run();
+
+   run(); // to make sure 'signal' stays in scope, we run the reactor here
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -200,7 +204,6 @@ TEST_F(Process, WHEN_sleep_is_cancelled_terminal_THEN_exits_with_code_9)
 {
    co_spawn(executor, execute("/usr/bin/sleep", {"10"}), cancel_after(50ms, token()));
    EXPECT_CALL(*this, on_exit(SIGKILL));
-   run();
 }
 
 TEST_F(Process, WHEN_sleep_is_cancelled_partial_THEN_exits_with_code_15)
@@ -208,7 +211,6 @@ TEST_F(Process, WHEN_sleep_is_cancelled_partial_THEN_exits_with_code_15)
    co_spawn(executor, execute("/usr/bin/sleep", {"10"}),
             cancel_after(50ms, cancellation_type::partial, token()));
    EXPECT_CALL(*this, on_exit(SIGTERM));
-   run();
 }
 
 TEST_F(Process, WHEN_sleep_is_cancelled_total_THEN_exits_with_code_2)
@@ -216,7 +218,6 @@ TEST_F(Process, WHEN_sleep_is_cancelled_total_THEN_exits_with_code_2)
    co_spawn(executor, execute("/usr/bin/sleep", {"10"}),
             cancel_after(50ms, cancellation_type::total, token()));
    EXPECT_CALL(*this, on_exit(SIGINT));
-   run();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -229,7 +230,6 @@ TEST_F(Process, WHEN_cancelled_terminal_THEN_exits_with_code_9)
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(0);
    EXPECT_CALL(*this, on_exit(SIGKILL));
-   run();
 }
 
 TEST_F(Process, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
@@ -239,7 +239,6 @@ TEST_F(Process, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
    EXPECT_CALL(*this, on_exit(SIGKILL));
-   run();
 }
 
 TEST_F(Process, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefully)
@@ -251,7 +250,6 @@ TEST_F(Process, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefull
    EXPECT_CALL(*this, on_log(HasSubstr("SIGTERM"))).Times(1);
    EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
@@ -263,40 +261,39 @@ TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
    EXPECT_CALL(*this, on_log(HasSubstr("SIGINT"))).Times(1);
    EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 // -------------------------------------------------------------------------------------------------
 
+// WARNING: this testcase leaves an orphaned "sleep 60"
 TEST_F(Process, WHEN_bash_is_killed_THEN_exits_with_code_9)
 {
-   auto coro =
-      execute("/usr/bin/bash",
-              {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 60; echo DONE"});
-   co_spawn(executor, std::move(coro), cancel_after(250ms, token()));
+   co_spawn(executor,
+            execute("/usr/bin/bash",
+                    {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 60; echo DONE"}),
+            cancel_after(250ms, token()));
    EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
    EXPECT_CALL(*this, on_exit(9));
-   run();
 }
 
 TEST_F(Process, WHEN_bash_ignores_sigterm_THEN_sleep_finishes)
 {
-   auto coro = execute("/usr/bin/bash", {"-c", "trap 'echo SIGTERM' SIGTERM; sleep 1; echo DONE"});
-   co_spawn(executor, std::move(coro), cancel_after(250ms, cancellation_type::partial, token()));
+   co_spawn(executor,
+            execute("/usr/bin/bash", {"-c", "trap 'echo SIGTERM' SIGTERM; sleep 1; echo DONE"}),
+            cancel_after(250ms, cancellation_type::partial, token()));
    EXPECT_CALL(*this, on_log(HasSubstr("SIGTERM"))).Times(1);
    EXPECT_CALL(*this, on_log(HasSubstr("DONE"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 TEST_F(Process, WHEN_bash_ignores_sigint_THEN_sleep_finishes)
 {
-   auto coro = execute("/usr/bin/bash", {"-c", "trap 'echo SIGINT' SIGINT; sleep 1; echo DONE"});
-   co_spawn(executor, std::move(coro), cancel_after(250ms, cancellation_type::total, token()));
+   co_spawn(executor,
+            execute("/usr/bin/bash", {"-c", "trap 'echo SIGINT' SIGINT; sleep 1; echo DONE"}),
+            cancel_after(250ms, cancellation_type::total, token()));
    EXPECT_CALL(*this, on_log(HasSubstr("SIGINT"))).Times(1);
    EXPECT_CALL(*this, on_log(HasSubstr("DONE"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -306,7 +303,6 @@ TEST_F(Process, WHEN_no_newline_at_end_of_output_THEN_prints_line)
    co_spawn(executor, execute("/usr/bin/echo", {"-n", "No newline at the end of this"}), token());
    EXPECT_CALL(*this, on_log("No newline at the end of this"));
    EXPECT_CALL(*this, on_exit(0));
-   run();
 }
 
 TEST_F(Process, WHEN_multiple_lines_are_in_last_buffer_THEN_all_are_print)
@@ -315,21 +311,18 @@ TEST_F(Process, WHEN_multiple_lines_are_in_last_buffer_THEN_all_are_print)
    EXPECT_CALL(*this, on_log("First line"));
    EXPECT_CALL(*this, on_log("Last line"));
    EXPECT_CALL(*this, on_exit(0));
-   runDebug();
 }
 
 TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 {
    co_spawn(executor, execute("/usr/bin/false", {}), token());
    EXPECT_CALL(*this, on_exit(1));
-   run();
 }
 
 TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_no_such_file_or_directory)
 {
    co_spawn(executor, execute("/path/does/not/exist", {}), token());
-   EXPECT_CALL(*this, on_error(_));
-   run();
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::no_such_file_or_directory)));
 }
 
 // =================================================================================================

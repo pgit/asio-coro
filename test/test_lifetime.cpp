@@ -191,8 +191,6 @@ TEST(Lifetime, DISABLED_WHEN_spawn_lambda_captures_everything_by_reference_THEN_
 
 TEST(Lifetime, DISABLED_WHEN_coroutine_holds_lock_across_suspension_point_THEN_locks_up)
 {
-   bool alive = true;
-
    std::mutex mutex;
    boost::asio::io_context context;
    for (size_t i = 0; i < 2; ++i)

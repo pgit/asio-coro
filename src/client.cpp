@@ -46,7 +46,7 @@ private:
          if (ex.code() == boost::system::errc::operation_canceled)
             ;
          else
-            ; // throw;
+            throw;
       }
       error_code ec;
       ec = socket.shutdown(boost::asio::socket_base::shutdown_send, ec);
@@ -66,7 +66,7 @@ private:
       }
       catch (system_error& ex)
       {
-         std::println("write: {}", ex.code().message());
+         // std::println("write: {}", ex.code().message());
          throw;
       }
    }
