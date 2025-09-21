@@ -23,8 +23,8 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address)
 endif()
-# add_compile_options(-stdlib=libc++)
-# add_link_options(-stdlib=libc++ -lstdc++fs)
+add_compile_options(-stdlib=libc++)
+add_link_options(-stdlib=libc++ -lstdc++fs)
 
 # use std::filesystem instead of boost::filesystem
 add_compile_definitions(BOOST_PROCESS_USE_STD_FS)
