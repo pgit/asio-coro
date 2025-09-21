@@ -8,7 +8,6 @@ FROM docker.io/psedoc/cpp-devcontainer:0.17 AS ci-base
 # Install 'ping' used by Process.* tests
 #
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
-    apt-get -y upgrade && \
     apt-get -y install iputils-ping tmux btop && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
