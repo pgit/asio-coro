@@ -24,16 +24,15 @@ awaitable<void> throw_error()
 awaitable<void> task(cancellation_type filter)
 {
 #if 1
-   co_await this_coro::reset_cancellation_state(
-      [filter](cancellation_type type)
-      {
-         auto filtered = type & filter;
-         if (filtered == none)
-            std::println("FILTER({}): {} -> \x1b[1;31m{}\x1b[0m", filter, type, filtered);
-         else
-            std::println("FILTER({}): {} -> {}", filter, type, filtered);
-         return filtered;
-      });
+   co_await this_coro::reset_cancellation_state([filter](cancellation_type type)
+   {
+      auto filtered = type & filter;
+      if (filtered == none)
+         std::println("FILTER({}): {} -> \x1b[1;31m{}\x1b[0m", filter, type, filtered);
+      else
+         std::println("FILTER({}): {} -> {}", filter, type, filtered);
+      return filtered;
+   });
 #else
    co_await this_coro::reset_cancellation_state(asio::enable_total_cancellation());
 #endif

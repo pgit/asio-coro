@@ -265,8 +265,13 @@ TEST_F(Process, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
 
 // -------------------------------------------------------------------------------------------------
 
-// WARNING: this testcase leaves an orphaned "sleep 60"
-TEST_F(Process, WHEN_bash_is_killed_THEN_exits_with_code_9)
+//
+// WARNING: This testcase leaves an orphaned "sleep 60"!
+//
+// This is because async_execute() doesn't set the PGID and kills by PID only.
+// See 'test_process_custom.cpp' for an example of custom cancellation that does this correctly.
+//
+TEST_F(Process, DISABLED_WHEN_bash_is_killed_THEN_exits_with_code_9)
 {
    co_spawn(executor,
             execute("/usr/bin/bash",

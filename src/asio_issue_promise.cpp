@@ -17,6 +17,8 @@
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
 
+#include <print>
+
 using namespace boost::asio;
 using namespace experimental;
 using namespace awaitable_operators;

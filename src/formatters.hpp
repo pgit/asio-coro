@@ -80,8 +80,6 @@ struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view
 
       if (type != none)
          std::format_to(ctx.out(), "{}0x{:x}", first ? "" : "|", to_underlying(type));
-      else if (first)
-         std::format_to(ctx.out(), "none");
 
       return ctx.out();
    }

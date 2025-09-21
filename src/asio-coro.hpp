@@ -7,6 +7,7 @@
 #include <boost/scope/scope_exit.hpp>
 
 #include <filesystem>
+#include <print>
 
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
 using namespace asio;

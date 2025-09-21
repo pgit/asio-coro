@@ -145,7 +145,7 @@ TEST_F(Cancellation, PingParallelGroup)
 // Next, we start cancelling the ping. We use a timer with an old-fashioned lambda completion
 // handler. Cancellation is done through the .cancel() operation on the IO object.
 //
-TEST_F(Cancellation, CancelPipe)
+TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_exception_is_thrown)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
@@ -157,14 +157,68 @@ TEST_F(Cancellation, CancelPipe)
             out.cancel(); // cancel any operation on this IO object
       });
 
-      // co_await co_spawn(executor, log(out));
       co_await log(out);
-      co_return co_await child.async_wait(); // will not be executed on timeout
+      ADD_FAILURE(); // will not be executed on timeout
+      co_return 0;
    };
 
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
    co_spawn(executor, ping(), token());
 }
+
+//
+// IO object based cancellation operates is handled separately from per-operation cancellation.
+// So, if we catch the cancellation error, after cancellation, the coroutine's cancellation state is
+// still 'none'.
+//
+// This means that the coroutine can continue to run normally.
+//
+TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   {
+      steady_timer timer(executor);
+      timer.expires_after(150ms);
+      timer.async_wait([&](error_code) { out.cancel(); });
+
+      co_await co_spawn(co_await this_coro::executor, log(out), as_tuple); // doesn't throw
+      EXPECT_EQ((co_await this_coro::cancellation_state).cancelled(), cancellation_type::none);
+      co_return co_await child.async_wait();
+   };
+
+   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(0);
+   EXPECT_CALL(*this, on_exit(0)); // only the log output was cancelled, but not the process
+   co_spawn(executor, ping(), token());
+}
+
+//
+// Test to verify that the cancellation handler of log() actually prints the remaining buffer that
+// is not yet terminated by a newline.
+//
+TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printed)
+{
+   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   {
+      steady_timer timer(executor);
+      timer.expires_after(150ms);
+      timer.async_wait([&](error_code ec)
+      {
+         if (!ec)
+            out.cancel(); // cancel any operation on this IO object
+      });
+
+      co_await log(out);
+      ADD_FAILURE(); // will not be executed on timeout
+      co_return 0;
+   };
+
+   EXPECT_CALL(*this, on_log("No newline"));
+   EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+   co_spawn(executor, execute("/usr/bin/bash", {"-c", "echo -ne 'First\nNo newline'; sleep 1"}),
+            token());
+}
+
+// -------------------------------------------------------------------------------------------------
 
 //
 // The more flexible, modern approach is to use per-operation cancellation instead of per-object
@@ -187,7 +241,8 @@ TEST_F(Cancellation, CancellationSlot)
       });
 
       co_await co_spawn(executor, log(out), bind_cancellation_slot(signal.slot()));
-      co_return co_await child.async_wait(); // will not be executed on timeout
+      ADD_FAILURE(); // will not be executed on timeout
+      co_return 0;
    };
 
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
@@ -440,9 +495,9 @@ TEST_F(Cancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
 {
    test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
+      co_await this_coro::throw_if_cancelled(false);
       auto promise = co_spawn(executor, log(out), use_promise);
       auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
-      co_await this_coro::reset_cancellation_state();
       co_await std::move(promise);
       co_return exit_code;
    };

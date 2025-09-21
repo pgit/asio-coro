@@ -29,14 +29,14 @@ using boost::algorithm::join;
 struct Escalation
 {
    std::vector<std::string> args;
-   cancellation_type cancellation_type;
+   cancellation_type type;
    std::set<std::string> expectations;
    int exit_code;
 };
 
 inline void PrintTo(const Escalation& e, std::ostream* os)
 {
-   *os << std::format(("{{{{{}}}, {}, {{{}}}, {}}}"), join(e.args, ", "), e.cancellation_type,
+   *os << std::format(("{{{{{}}}, {}, {{{}}}, {}}}"), join(e.args, ", "), e.type,
                       join(e.expectations, ", "), e.exit_code);
 }
 
@@ -306,7 +306,7 @@ TEST_P(ProcessCustom, Escalation)
             cancel_after(250ms, param.cancellation_type, token()));
 #else
    co_spawn(executor, execute("build/src/handle_signal", param.args),
-            cancel_after(250ms, param.cancellation_type, token()));
+            cancel_after(250ms, param.type, token()));
 #endif
 
    EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
