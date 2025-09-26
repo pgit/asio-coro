@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp> // Add this include
 
 #include <iostream>
+#include <ranges>
 #include <thread>
 
 using std::chrono::milliseconds;
@@ -106,7 +107,7 @@ public:
       auto endpoints = co_await resolver.async_resolve(host, std::to_string(port), flags);
 
       auto range = endpoints | std::views::transform([](const auto& x)
-                                                     { return std::format("{}", x.endpoint()); });
+      { return std::format("{}", x.endpoint()); });
       // auto range = endpoints | std::views::transform([](const auto& x) { return x.endpoint(); });
       // std::println("endpoints: {}", range);
 
@@ -143,7 +144,7 @@ int main(int argc, char* argv[])
    // Define and parse command line options
    po::options_description desc("Allowed options");
    desc.add_options()("help,h", "produce help message");
-   desc.add_options()("host,h", po::value<std::string>(&config.host)->default_value("localhost"),
+   desc.add_options()("host", po::value<std::string>(&config.host)->default_value("localhost"),
                       "host to connect to");
    desc.add_options()("port,p", po::value<uint16_t>(&config.port)->default_value(55555),
                       "port number");
@@ -175,16 +176,13 @@ int main(int argc, char* argv[])
    std::vector<Client> clients;
    clients.reserve(config.connections);
    auto futures = std::views::iota(size_t{0}, clients.capacity()) |
-                  std::views::transform(
-                     [&, executor](size_t) mutable
-                     {
-                        if (config.extraThreads)
-                           executor = make_strand(executor);
-                        clients.emplace_back(ClientConfig{});
-                        return co_spawn(executor, clients.back().run(config.host, config.port),
-                                        as_tuple(use_future));
-                     }) |
-                  std::ranges::to<std::vector>();
+                  std::views::transform([&, executor](size_t) mutable
+   {
+      if (config.extraThreads)
+         executor = make_strand(executor);
+      clients.emplace_back(ClientConfig{});
+      return co_spawn(executor, clients.back().run(config.host, config.port), as_tuple(use_future));
+   }) | std::ranges::to<std::vector>();
 
    //
    // Finally, run the IO context until there is no pending operation left.
@@ -211,6 +209,6 @@ int main(int argc, char* argv[])
    }
 
    auto dt = std::max(1ms, floor<milliseconds>(steady_clock::now() - t0));
-   std::println("Total bytes transferred: {} at {} MB/s", Bytes(total),
+   std::println("Total bytes echoed: {} at {} MB/s", Bytes(total),
                 total * 1000 / 1024 / 1024 / dt.count());
 }

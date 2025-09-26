@@ -1,4 +1,5 @@
 #include "asio-coro.hpp"
+#include "log.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
@@ -25,36 +26,6 @@ using boost::system::system_error;
 namespace bp = boost::process::v2;
 
 using namespace std::chrono_literals;
-
-// =================================================================================================
-
-/// Reads lines from \p pipe and prints them with \p prefix, colored.
-/**
- * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
- * On error while reading from the pipe, any lines in the remaining buffer are printed,
- * including the trailing incomplete line, if any.
- */
-awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
-{
-   auto print = [&](auto line) { std::println("{}: \x1b[32m{}\x1b[0m", prefix, line); };
-
-   std::string buffer;
-   try
-   {
-      for (;;)
-      {
-         auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
-         print(std::string_view(buffer).substr(0, n - 1));
-         buffer.erase(0, n);
-      }
-   }
-   catch (const system_error& ec)
-   {
-      for (auto line : split_lines(buffer))
-         print(line);
-      throw;
-   }
-}
 
 // =================================================================================================
 
@@ -190,14 +161,13 @@ awaitable<int> execute5(std::filesystem::path path, std::vector<std::string> arg
 
    cancellation_signal signal;
    auto cs = co_await this_coro::cancellation_state;
-   cs.slot().assign(
-      [&](cancellation_type ct)
-      {
-         std::println("cancelled: {}", ct);
-         if ((ct & cancellation_type::total) != cancellation_type::none)
-            child.interrupt();
-         signal.emit(cancellation_type::terminal);
-      });
+   cs.slot().assign([&](cancellation_type ct)
+   {
+      std::println("cancelled: {}", ct);
+      if ((ct & cancellation_type::total) != cancellation_type::none)
+         child.interrupt();
+      signal.emit(cancellation_type::terminal);
+   });
 
    std::println("execute: waiting for process...");
    auto [ec, exit_code] =
@@ -220,12 +190,11 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
    cancellation_signal signal;
    steady_timer timer(executor);
    timer.expires_after(timeout);
-   timer.async_wait(
-      [&](error_code ec)
-      {
-         if (!ec)
-            signal.emit(cancellation_type::total);
-      });
+   timer.async_wait([&](error_code ec)
+   {
+      if (!ec)
+         signal.emit(cancellation_type::total);
+   });
 
    co_return co_await co_spawn(executor, execute5(std::move(path), std::move(args)),
                                bind_cancellation_slot(signal.slot()));

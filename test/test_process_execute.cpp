@@ -217,7 +217,7 @@ TEST_F(ProcessExecute, WHEN_sleep_is_cancelled_total_THEN_exits_with_code_2)
 
 TEST_F(ProcessExecute, WHEN_cancelled_terminal_THEN_exits_with_code_9)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-i1", "-t1"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/bin/handle_signal", "-i1", "-t1"}),
             cancel_after(250ms, cancellation_type::terminal, token()));
 
    EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));
@@ -227,7 +227,7 @@ TEST_F(ProcessExecute, WHEN_cancelled_terminal_THEN_exits_with_code_9)
 
 TEST_F(ProcessExecute, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-i1", "-t1"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/bin/handle_signal", "-i1", "-t1"}),
             cancel_after(250ms, token()));
 
    EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));
@@ -236,7 +236,7 @@ TEST_F(ProcessExecute, WHEN_cancelled_without_type_THEN_is_cancelled_terminal)
 
 TEST_F(ProcessExecute, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gracefully)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-t0"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/bin/handle_signal", "-t0"}),
             cancel_after(250ms, cancellation_type::partial, token()));
 
    EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));
@@ -247,7 +247,7 @@ TEST_F(ProcessExecute, WHEN_cancelled_partial_THEN_receives_sigterm_and_exits_gr
 
 TEST_F(ProcessExecute, WHEN_cancelled_total_THEN_receives_sigint_and_exits_gracefully)
 {
-   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/src/handle_signal", "-i0"}),
+   co_spawn(executor, execute("/usr/bin/stdbuf", {"-o0", "build/bin/handle_signal", "-i0"}),
             cancel_after(250ms, cancellation_type::total, token()));
 
    EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));

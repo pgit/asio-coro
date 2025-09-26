@@ -15,7 +15,6 @@ using namespace std::chrono_literals;
 using enum cancellation_type;
 
 using Sleep = void(boost::system::error_code);
-using SleepHandler = any_completion_handler<Sleep>;
 
 using Duration = std::chrono::nanoseconds;
 
@@ -23,7 +22,7 @@ template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken>
 static auto async_sleep(boost::asio::any_io_executor ex, Duration duration, CompletionToken&& token)
 {
    return boost::asio::async_initiate<CompletionToken, Sleep>(
-      [](SleepHandler handler, boost::asio::any_io_executor ex, Duration duration)
+      [](auto handler, boost::asio::any_io_executor ex, Duration duration)
       {
          auto timer = std::make_shared<steady_timer>(ex, duration);
          timer->async_wait(consign(std::move(handler), timer));

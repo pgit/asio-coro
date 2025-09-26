@@ -1,8 +1,6 @@
-#include "utils.hpp"
+#include "run.hpp"
 
 #include <print>
-
-// =================================================================================================
 
 size_t run(boost::asio::io_context& context)
 {
@@ -26,5 +24,3 @@ size_t run(boost::asio::io_context& context)
    return i;
 #endif
 }
-
-// =================================================================================================

@@ -299,13 +299,13 @@ TEST_P(ProcessCustom, Escalation)
    // UPDATE: 'handle_signal' now calls 'setlinebuf(stdout)'.
    //         Keeping this as a reference on how to use 'stdbuf'.
    //
-   std::vector<std::string> args{"-eL", "build/src/handle_signal"};
+   std::vector<std::string> args{"-eL", "build/bin/handle_signal"};
    args.append_range(param.args);
 
    co_spawn(executor, execute("/usr/bin/stdbuf", args),
             cancel_after(250ms, param.cancellation_type, token()));
 #else
-   co_spawn(executor, execute("build/src/handle_signal", param.args),
+   co_spawn(executor, execute("build/bin/handle_signal", param.args),
             cancel_after(250ms, param.type, token()));
 #endif
 

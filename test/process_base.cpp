@@ -1,5 +1,6 @@
 #include "process_base.hpp"
 #include "asio-coro.hpp"
+#include "log.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
