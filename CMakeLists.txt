@@ -44,5 +44,6 @@ link_libraries(Boost::thread Boost::atomic)
 # --------------------------------------------------------------------------------------------------
 
 add_subdirectory(src)
-add_subdirectory(slides)
+add_subdirectory(echo)
+add_subdirectory(process)
 add_subdirectory(test)

@@ -45,7 +45,6 @@ awaitable<void> group()
 int main()
 {
    boost::asio::io_context context;
-   auto executor = context.get_executor();
-   co_spawn(executor, group(), cancel_after(1ms, cancellation_type::total, detached));
+   co_spawn(context, group(), cancel_after(1ms, cancellation_type::total, detached));
    context.run();
 }

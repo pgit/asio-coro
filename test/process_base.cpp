@@ -14,7 +14,8 @@
 
 // =================================================================================================
 
-awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
+awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe,
+                                 std::function<void(std::string_view)> on_output)
 {
    std::string buffer;
    auto print = [&](auto line)
@@ -22,7 +23,8 @@ awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
       // print trailing '…' if there is more data in the buffer after the current line
       const auto continuation = (line.size() + 1 == buffer.size()) ? "" : "…";
       std::println("{}: \x1b[32m{}\x1b[0m{}", prefix, line, continuation);
-      on_log(line);
+      if (on_output)
+         on_output(line);
    };
 
    using enum cancellation_type;
@@ -64,7 +66,7 @@ awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe)
    {
       std::println("{}: {}", prefix, ec.code().message());
       if (cs.cancelled() != cancellation_type::none)
-         std::println("{}: CANCELLED ({})", prefix, cs.cancelled());        
+         std::println("{}: CANCELLED ({})", prefix, cs.cancelled());
 
       for (auto line : split_lines(buffer))
          print(line);

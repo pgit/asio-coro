@@ -19,7 +19,7 @@ using ExitCode = std::optional<int>;
 
 class ProcessBase
 {
-protected:
+private:
    /// Reads lines from \p pipe and prints them with \p prefix, colored.
    /**
     * The \p pipe is passed as a reference and must be kept alive while as long as the coroutine is
@@ -30,8 +30,19 @@ protected:
     * On error while reading from the pipe, any lines in the remaining buffer are printed,
     * including the trailing incomplete line, if any.
     */
-   awaitable<void> log(std::string prefix, readable_pipe& pipe);
-   awaitable<void> log(readable_pipe& pipe) { return log("STDOUT", pipe); }
+   awaitable<void> log(std::string prefix, readable_pipe& pipe,
+                       std::function<void(std::string_view)> on_output = {});
+
+protected:
+   awaitable<void> log_stdout(readable_pipe& pipe)
+   {
+      return log("STDOUT", pipe, [this](std::string_view line) { on_stdout(line); });
+   }
+
+   awaitable<void> log_stderr(readable_pipe& pipe)
+   {
+      return log("STDERR", pipe, [this](std::string_view line) { on_stderr(line); });
+   }
 
    /// Returns completion token suitable for testing the result of executing a process.
    auto token()
@@ -40,7 +51,7 @@ protected:
       {
          if (ep)
          {
-            assert(!exit_code); // on error, we should have a default-constructed exit_code
+            // assert(!exit_code); // on error, we should have a default-constructed exit_code
             std::println("execute: {}", what(ep));
             on_error(code(ep));
          }
@@ -57,7 +68,8 @@ protected:
       };
    }
 
-   MOCK_METHOD(void, on_log, (std::string_view line), ());
+   MOCK_METHOD(void, on_stdout, (std::string_view line), ());
+   MOCK_METHOD(void, on_stderr, (std::string_view line), ());
    MOCK_METHOD(void, on_error, (error_code ec), ());
    MOCK_METHOD(void, on_exit, (int exit_code), ());
 

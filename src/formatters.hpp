@@ -54,8 +54,7 @@ struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view
 {
    auto format(asio::cancellation_type type, auto& ctx) const
    {
-      using ct = asio::cancellation_type;
-      using enum ct;
+      using enum asio::cancellation_type;
 
       if (type == none)
          return std::formatter<std::string_view>::format("none", ctx);

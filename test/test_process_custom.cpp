@@ -101,8 +101,8 @@ protected:
       // This is similar to how use_future works, but this one can be awaited asynchronously.
       //
       using namespace experimental;
-      auto promise = make_parallel_group(co_spawn(executor, log("STDOUT", out)),
-                                         co_spawn(executor, log("STDERR", err)))
+      auto promise = make_parallel_group(co_spawn(executor, log_stdout(out)),
+                                         co_spawn(executor, log_stderr(err)))
                         .async_wait(wait_for_all(), use_promise);
 
       //
@@ -194,7 +194,7 @@ TEST_F(ProcessCustom, WHEN_bash_is_killed_THEN_exits_with_code_9)
               {"-c", "trap 'echo SIGNAL' SIGINT SIGTERM; echo WAITING; sleep 10; echo DONE"});
    co_spawn(executor, std::move(coro), cancel_after(250ms, token()));
 
-   EXPECT_CALL(*this, on_log(HasSubstr("WAITING"))).Times(1);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("WAITING"))).Times(1);
    EXPECT_CALL(*this, on_exit(9));
 }
 
@@ -217,9 +217,9 @@ TEST_F(ProcessCustom, WHEN_operator_or_times_out_THEN_is_interrupted_and)
       token(ep, 0);
    });
 
-   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
-   EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
-   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
 }
 
@@ -243,9 +243,9 @@ TEST_F(ProcessCustom, WHEN_operator_and_times_out_THEN_is_interrupted)
    auto coro = execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"});
    co_spawn(executor, std::move(coro) && sleepAndThrow(250ms), token());
 
-   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
-   EXPECT_CALL(*this, on_log(HasSubstr("5 packets"))).Times(0);
-   EXPECT_CALL(*this, on_log(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
 }
 
@@ -309,17 +309,17 @@ TEST_P(ProcessCustom, Escalation)
             cancel_after(250ms, param.type, token()));
 #endif
 
-   EXPECT_CALL(*this, on_log(_)).Times(AtLeast(1));
+   EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1));
 
    for (auto signal : {"SIGINT", "SIGTERM", "TIMEOUT"})
    {
       if (param.expectations.contains(signal))
-         EXPECT_CALL(*this, on_log(HasSubstr(signal))).Times(1); // must appear in output
+         EXPECT_CALL(*this, on_stdout(HasSubstr(signal))).Times(1); // must appear in output
       else
-         EXPECT_CALL(*this, on_log(HasSubstr(signal))).Times(0); // may not appear in output
+         EXPECT_CALL(*this, on_stdout(HasSubstr(signal))).Times(0); // may not appear in output
    }
 
-   EXPECT_CALL(*this, on_log(HasSubstr("done"))).Times(param.exit_code ? 0 : 1);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("done"))).Times(param.exit_code ? 0 : 1);
    EXPECT_CALL(*this, on_exit(param.exit_code));
 }
 
