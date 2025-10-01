@@ -18,6 +18,8 @@
         "libasan",
         "libc",
         "libcxx",
+        "lldb",
+        "lldbinit",
         "noninteractive",
         "Nullary",
         "psedoc",
