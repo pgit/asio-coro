@@ -43,6 +43,7 @@ link_libraries(Boost::thread Boost::atomic)
 
 # --------------------------------------------------------------------------------------------------
 
+enable_testing()
 add_subdirectory(lib)
 add_subdirectory(bin)
 add_subdirectory(echo)

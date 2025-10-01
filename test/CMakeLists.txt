@@ -8,4 +8,8 @@ target_link_libraries(test_all PRIVATE asio_coro)
 find_package(GTest REQUIRED)
 target_link_libraries(GTest::GTest INTERFACE gtest_main)
 
-enable_testing(false)
+# Register the tests with CTest
+include(GoogleTest)
+gtest_discover_tests(test_all
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
