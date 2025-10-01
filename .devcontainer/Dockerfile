@@ -21,27 +21,31 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
 FROM ci-base
 
 #
-# GDB libc++ pretty printer (works for string, but not for map with llvm-17)
+# GDB libc++ pretty printer
 #
 ARG USERNAME=vscode
 RUN cd /home/${USERNAME} && \
-    git clone https://github.com/koutheir/libcxx-pretty-printers.git && \
-    chown -R $USERNAME libcxx-pretty-printers && \
-    echo >>.gdbinit "python\nimport sys\nsys.path.insert(0, '/home/${USERNAME}/libcxx-pretty-printers/src')\nfrom libcxx.v1.printers import register_libcxx_printers\nregister_libcxx_printers(None)\nend" && \
+    mkdir -p gdb && \
+    cd gdb && \
+    wget https://raw.githubusercontent.com/llvm/llvm-project/9a30ada53d5ef8d651c75795af2f6e9c48a1eecb/libcxx/utils/gdb/libcxx/printers.py && \
+    cd .. \
+    echo >>.gdbinit "python\nimport sys\nsys.path.insert(0, '/home/${USERNAME}/gdb')\nfrom printers import register_libcxx_printer_loader\nregister_libcxx_printer_loader()" && \
     chown $USERNAME .gdbinit
 
 #
 # ASIO Debugger Extensions
 #
+# FIXME: don't seem to work, search for something that does
+#
 # https://github.com/chriskohlhoff/asio-debugger-extensions.git
 #
-ARG USERNAME=vscode
-RUN cd /home/${USERNAME} && \
-    git clone https://github.com/chriskohlhoff/asio-debugger-extensions.git && \
-    chown -R $USERNAME asio-debugger-extensions && \
-    echo >>.gdbinit "source /home/${USERNAME}/asio-debugger-extensions/gdb/awaitable_backtrace.py" && \
-    echo >>.gdbinit "source /home/${USERNAME}/asio-debugger-extensions/gdb/pretty_printer.py" && \
-    chown $USERNAME .gdbinit
+# ARG USERNAME=vscode
+# RUN cd /home/${USERNAME} && \
+#     git clone https://github.com/chriskohlhoff/asio-debugger-extensions.git && \
+#     chown -R $USERNAME asio-debugger-extensions && \
+#     echo >>.gdbinit "source /home/${USERNAME}/asio-debugger-extensions/gdb/awaitable_backtrace.py" && \
+#     echo >>.gdbinit "source /home/${USERNAME}/asio-debugger-extensions/gdb/pretty_printer.py" && \
+#     chown $USERNAME .gdbinit
 
 #
 # Customize Environment
