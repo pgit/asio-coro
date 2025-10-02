@@ -14,6 +14,7 @@
 		"vscode": {
 			// Set *default* container specific settings.json values on container create.
 			"settings": {
+				"cmake.ctest.testExplorerIntegrationEnabled": false,
 				"clangd.arguments": [
 					"--clang-tidy",
 					"--pch-storage=disk",
