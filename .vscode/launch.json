@@ -29,7 +29,10 @@
             "name":"(lldb)",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/${relativeFileDirname}/${fileBasenameNoExtension}"
+            "program": "${workspaceFolder}/build/${relativeFileDirname}/${fileBasenameNoExtension}",
+            "initCommands": [
+                "command script import /usr/local/lib/lldb/lldb_coro_debugging.py"
+            ]
         }
     ]
 }

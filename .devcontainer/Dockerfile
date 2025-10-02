@@ -2,7 +2,7 @@
 # https://github.com/microsoft/vscode-dev-containers/tree/main/containers/debian
 # https://github.com/pgit/cpp-devcontainer
 #
-FROM docker.io/psedoc/cpp-devcontainer:0.19 AS ci-base
+FROM docker.io/psedoc/cpp-devcontainer:0.20 AS ci-base
 
 #
 # Install 'ping' used by Process.* tests
@@ -21,26 +21,14 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
 FROM ci-base
 
 #
-# GDB libc++ pretty printer
-#
-ARG USERNAME=vscode
-RUN cd /home/${USERNAME} && \
-    mkdir -p gdb && \
-    cd gdb && \
-    wget https://raw.githubusercontent.com/llvm/llvm-project/9a30ada53d5ef8d651c75795af2f6e9c48a1eecb/libcxx/utils/gdb/libcxx/printers.py && \
-    cd .. && \
-    echo >>.gdbinit "python\nimport sys\nsys.path.insert(0, '/home/${USERNAME}/gdb')\nfrom printers import register_libcxx_printer_loader\nregister_libcxx_printer_loader()" && \
-    chown ${USERNAME} .gdbinit
-
-#
 # https://clang.llvm.org/docs/DebuggingCoroutines.html#lldb-debugger-script
 #
 # Adds "coro bt" to LLDB, but doesn't seem to work with ASIO frames.
 #
 ARG USERNAME=vscode
-COPY lldb_coro_debugging.py /home/${USERNAME}/lldb_coro_debugging.py
+COPY lldb_coro_debugging.py /usr/local/lib/lldb/lldb_coro_debugging.py
 RUN cd /home/${USERNAME} && \
-    echo >>.lldbinit "command script import lldb_coro_debugging.py" && \
+    echo >>.lldbinit "command script import /usr/local/lib/lldb/lldb_coro_debugging.py" && \
     chown ${USERNAME} .lldbinit
 
 #
