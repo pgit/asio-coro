@@ -18,7 +18,7 @@ size_t run(boost::asio::io_context& context)
          std::println("--- {} ------------------------------------------------------------------------", i);
       else
          std::println("\x1b[1;31m--- {} ({}) ----------------------------------------------------------------\x1b[0m", i, dt);
-      // clang-format off
+      // clang-format on
       t0 = t1;
    }
    return i;
