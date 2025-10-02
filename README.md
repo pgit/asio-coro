@@ -17,20 +17,23 @@ There are several implementations of TCP echo servers in this project, for demon
 cmake --build build --target all -- && build/slides/echo_coro
 ```
 
-To test, use `socat`:
+Test client:
+```bash
+cmake --build build && build/bin/client -c 10
+```
+
+To test interactively, use `socat`:
 ```bash
 socat STDIN TCP-CONNECT:[::1]:55555
 socat STDIN,raw,echo=0,icrnl,crlf,escape=0x03 TCP:[::1]:55555
 ```
 
 To test echo speed, you can use `netcat` like this:
-
 ```bash
 dd if=/dev/zero bs=1M count=512|nc -N localhost 55555|dd of=/dev/null
 ```
 
 To simulate multiple clients:
-
 ```bash
 for ((i=0; i<5; ++i))
 do
