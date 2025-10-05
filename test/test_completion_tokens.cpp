@@ -123,6 +123,12 @@ TEST_F(CompletionToken, WHEN_multiple_timers_are_created_with_ranges_THEN_latch_
 
 // -------------------------------------------------------------------------------------------------
 
+//
+// WARNING: The following tests use std::{promise,future} and can produce false positive when run
+//          with thread sanitizer. Also, this seems to be a problem specific to libc++ only.
+//
+//          https://github.com/llvm/llvm-project/issues/104892
+//
 TEST_F(CompletionToken, WHEN_timer_completes_THEN_lambda_is_called)
 {
    steady_timer timer(executor);

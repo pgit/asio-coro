@@ -1,6 +1,7 @@
 #include "asio-coro.hpp"
 #include "run.hpp"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <boost/asio/experimental/promise.hpp>
@@ -34,6 +35,8 @@ using CompleteNullary = void();
 using CompleteNoDefault = void(boost::system::error_code, NoDefault);
 
 using Duration = std::chrono::nanoseconds;
+
+using DefaultCompletionToken = asio::default_completion_token_t<asio::any_io_executor>;
 
 // =================================================================================================
 
@@ -347,13 +350,17 @@ public:
 // asynchronous operation will continue to run. Eventually, it will call ++done, which is
 // a use-after-free.
 //
-TEST_F(ComposedCoro, DISABLED_Unbound)
+// If we have defined BOOST_ASIO_NO_TS_EXECUTORS instead, this won't be scheduled at all.
+//
+#if defined(BOOST_ASIO_NO_TS_EXECUTORS)
+TEST_F(ComposedCoro, Unbound)
 {
    boost::asio::io_context context;
    async_sleep(100ms, asio::detached);
    ::run(context);
-   EXPECT_EQ(done, 1);
+   EXPECT_EQ(done, 0);
 }
+#endif
 
 //
 // This test is only (somewhat) safe because there is a longer sleep in the test that follows.
@@ -595,6 +602,113 @@ TEST(Threads, Strand)
       thread.join();
 
    EXPECT_EQ(counter, N * C);
+}
+
+// =================================================================================================
+
+class CustomCancellationSlot : public testing::Test
+{
+private:
+   boost::asio::io_context context;
+
+protected:
+   boost::asio::any_io_executor executor{context.get_executor()};
+   using executor_type = boost::asio::any_io_executor;
+   executor_type get_executor() const noexcept { return executor; }
+
+   void TearDown() override { ::run(context); }
+
+   auto token()
+   {
+      return [this](const std::exception_ptr& ep) { on_complete(code(ep)); };
+   }
+
+   MOCK_METHOD(void, on_complete, (boost::system::error_code ec), ());
+   static constexpr auto Success = boost::system::error_code{};
+
+protected:
+   asio::steady_timer timer{executor};
+   SleepHandler handler;
+   void async_sleep_impl(SleepHandler handler_, Duration duration)
+   {
+      this->handler = std::move(handler_);
+      auto slot = get_associated_cancellation_slot(handler);
+      if (slot.is_connected() && !slot.has_handler())
+      {
+         slot.assign([this](asio::cancellation_type_t ct) mutable { //
+            std::println("async_sleep: \x1b[1;31m{}\x1b[0m ({})", "cancelled", ct);
+            auto exec = get_associated_executor(this->handler);
+            post(executor, [h = std::move(this->handler)] mutable { //
+               std::move(h)(errc::make_error_code(errc::operation_not_supported));
+            });;
+            timer.cancel();
+         });
+      }
+
+      timer.expires_after(duration);
+      timer.async_wait([this](error_code ec) { //
+         if (handler)
+            std::move(handler)(ec);
+      });
+   }
+
+public:
+   template <BOOST_ASIO_COMPLETION_TOKEN_FOR(Sleep) CompletionToken = DefaultCompletionToken>
+   auto async_sleep(Duration duration, CompletionToken&& token = CompletionToken())
+   {
+      auto executor = boost::asio::get_associated_executor(token, get_executor());
+      return boost::asio::async_initiate<CompletionToken, Sleep>(
+         bind_executor(executor, [&](SleepHandler&& handler, Duration duration) { //
+            async_sleep_impl(std::move(handler), duration);
+         }),
+         token, duration);
+   }
+};
+
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(CustomCancellationSlot, WHEN_async_op_is_cancelled_THEN_completes_with_operation_cancelled)
+{
+   co_spawn(executor, [this]() -> awaitable<void>
+   {
+      auto ex = co_await this_coro::executor;
+      auto [ec] = co_await async_sleep(100ms, cancel_after(20ms, as_tuple));
+      std::println("async_sleep: {}", what(ec));
+      EXPECT_EQ(ec, errc::operation_not_supported);
+   }, token());
+
+   EXPECT_CALL(*this, on_complete(Success));
+}
+
+// =================================================================================================
+
+class MinimalAsyncFixture : public testing::Test
+{
+   boost::asio::io_context context;
+
+protected:
+   boost::asio::any_io_executor executor{context.get_executor()};
+
+   std::function<awaitable<void>()> test;
+   void TearDown() override
+   {
+      co_spawn(executor, std::move(test)(), [this](auto&& ep) { on_complete(code(ep)); });
+      ::run(context);
+   }
+   MOCK_METHOD(void, on_complete, (boost::system::error_code ec), ());
+};
+
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(MinimalAsyncFixture, WHEN_coroutine_finishes_THEN_completes_with_success)
+{
+   test = [] -> awaitable<void>
+   {
+      co_await sleep(1ms);
+      std::println("slept for a short time");
+   };
+
+   EXPECT_CALL(*this, on_complete(boost::system::error_code{}));
 }
 
 // =================================================================================================
