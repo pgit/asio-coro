@@ -23,8 +23,14 @@ namespace asio = boost::asio;
  *
  * The function integrates with Boost.Asio's asynchronous model, supporting custom executors,
  * allocators, and cancellation slots associated with the completion handler.
+ *
+ * https://www.boost.org/doc/libs/master/doc/html/boost_asio/reference/asynchronous_operations.html
  */
-template <typename Executor, typename CompletionToken, typename F, typename... Args>
+template <BOOST_ASIO_EXECUTION_EXECUTOR Executor, typename F, typename... Args,
+          typename CompletionToken,
+          typename CompletionSignature = void(std::invoke_result_t<F, Args...>)>
+   requires std::invocable<F, Args...> &&
+            asio::completion_token_for<CompletionToken, CompletionSignature>
 auto async_invoke(Executor& executor, CompletionToken&& token, F&& f, Args&&... args)
 {
    using result_type = std::invoke_result_t<F, Args...>;
@@ -32,7 +38,7 @@ auto async_invoke(Executor& executor, CompletionToken&& token, F&& f, Args&&... 
    return asio::async_initiate<CompletionToken, void(result_type)>(
       [](auto handler, Executor& pool, F f, Args... args) mutable
    {
-      auto ex = asio::get_associated_executor(handler);
+      auto ex = asio::get_associated_executor(handler, pool);
       auto alloc = asio::get_associated_allocator(handler);
 
       asio::post(pool,
@@ -57,6 +63,23 @@ auto async_invoke(Executor& executor, CompletionToken&& token, F&& f, Args&&... 
          }
       }));
    }, token, std::ref(executor), std::forward<F>(f), std::forward<Args>(args)...);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/**
+ * Partial specialization with a default completion token (usually, 'deferred'). This is a bit
+ * tricky because of the variadic args but works if enough concepts are in place.
+ */
+template <BOOST_ASIO_EXECUTION_EXECUTOR Executor, typename F, typename... Args,
+          typename CompletionToken = asio::default_completion_token_t<Executor>,
+          typename CompletionSignature = void(std::invoke_result_t<F, Args...>)>
+   requires std::invocable<F, Args...> &&
+            asio::completion_token_for<CompletionToken, CompletionSignature>
+auto async_invoke(Executor& executor, F&& f, Args&&... args)
+{
+   return async_invoke(executor, CompletionToken(), std::forward<F>(f),
+                       std::forward<Args>(args)...);
 }
 
 // =================================================================================================

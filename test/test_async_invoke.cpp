@@ -20,11 +20,12 @@ using Duration = std::chrono::milliseconds;
 
 class AsyncInvoke : public ::testing::Test
 {
-   boost::asio::io_context context;
+   io_context context;
+   thread_pool thread_pool{10};
 
 protected:
-   boost::asio::any_io_executor executor{context.get_executor()};
-   boost::asio::thread_pool pool{10};
+   io_context::executor_type executor{context.get_executor()};
+   thread_pool::executor_type pool{thread_pool.get_executor()};
    void run() { ::run(context); }
 };
 
@@ -56,6 +57,9 @@ TEST_F(AsyncInvoke, WHEN_in_pool_THEN_counter_needs_protection)
 /**
  * If the completion token (here, a lambda) is bound to the single-threaded 'executor',
  * incrementing the counter does not need to be protected.
+ *
+ * Note that async_invoke() needs to register work with the handler's executor. If we didn't do
+ * that, the executor would right after the jobs have been submitted to the pool.
  */
 TEST_F(AsyncInvoke, WHEN_in_completion_handler_THEN_counter_does_not_need_protection)
 {
@@ -140,6 +144,39 @@ TEST_F(AsyncInvoke, WHEN_count_after_await_THEN_counter_does_not_need_protection
       }, detached);
    run();
    EXPECT_EQ(count, 20);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(AsyncInvoke, WHEN_async_invoke_without_token_THEN_uses_default_token)
+{
+   size_t count = 0;
+   for (size_t i = 0; i < 20; ++i)
+      co_spawn(executor, [&] mutable -> awaitable<void>
+      {
+         co_await async_invoke(pool, [&](Duration duration) -> error_code
+         {
+            std::this_thread::sleep_for(duration);
+            return error_code{};
+         }, 100ms);
+         count++;
+         co_return;
+      }, detached);
+   run();
+   EXPECT_EQ(count, 20);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+TEST_F(AsyncInvoke, WHEN_job_returns_error_THEN_is_thrown_by_future)
+{
+   namespace errc = boost::system::errc;
+   auto future = async_invoke(pool, asio::use_future, [&](Duration duration) -> error_code
+   {
+      std::this_thread::sleep_for(duration);
+      return errc::make_error_code(errc::timed_out);
+   }, 100ms);
+   EXPECT_THROW(future.get(), boost::system::system_error);
 }
 
 // =================================================================================================
