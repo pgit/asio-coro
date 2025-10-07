@@ -1,3 +1,4 @@
+#pragma once
 #include <boost/asio/readable_pipe.hpp>
 #include <boost/asio/awaitable.hpp>
 

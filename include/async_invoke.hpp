@@ -1,4 +1,4 @@
-
+#pragma once
 #include <boost/asio.hpp>
 #include <boost/asio/associated_allocator.hpp>
 #include <boost/asio/associated_cancellation_slot.hpp>
