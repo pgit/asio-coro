@@ -348,25 +348,24 @@ public:
 //
 // If this test is run and other tests follow that keep asio running for 100ms, then the
 // asynchronous operation will continue to run. Eventually, it will call ++done, which is
-// a use-after-free.
-//
-// If we have defined BOOST_ASIO_NO_TS_EXECUTORS instead, this won't be scheduled at all.
-//
-#if defined(BOOST_ASIO_NO_TS_EXECUTORS)
-TEST_F(ComposedCoro, Unbound)
+// a use-after-free. Or the ++done bleeds into one of the next testcases, as has happened here:
+// https://github.com/pgit/asio-coro/actions/runs/18305296533/job/52121061667#step:6:231
+// 
+TEST_F(ComposedCoro, DISABLED_Unbound)
 {
    boost::asio::io_context context;
    async_sleep(100ms, asio::detached);
    ::run(context);
    EXPECT_EQ(done, 0);
 }
-#endif
 
 //
 // This test is only (somewhat) safe because there is a longer sleep in the test that follows.
 // If you run it under very high load, it may still fail, very seldomly.
 //
 // TSAN also reports this, and fails because of TSAN_OPTIONS "halt_on_error=1", so it disabled.
+//
+// Note that even with BOOST_ASIO_NO_TS_EXECUTORS, the system executor is used as fallback.
 //
 TEST_F(ComposedCoro, DISABLED_DefaultExecutor)
 {
