@@ -93,6 +93,11 @@ TEST_F(AsyncInvoke, WHEN_post_to_different_executor_THEN_coroutine_continues_the
       {
          co_await dispatch(executor, bind_executor(pool));
          EXPECT_NE(executor_thread_id, std::this_thread::get_id());
+
+         std::println("Sleeping...");
+         std::this_thread::sleep_for(100ms);
+         std::println("Sleeping... done");
+
          co_await dispatch(pool, bind_executor(executor));
          EXPECT_EQ(executor_thread_id, std::this_thread::get_id());
          count++;
@@ -120,11 +125,12 @@ TEST_F(AsyncInvoke, WHEN_post_to_different_executor_THEN_coroutine_continues_the
  *   handler — which, for a coroutine using use_awaitable or deferred, is the coroutine’s own
  *   original executor, not the one you’re currently running on.
  *
- * So even though the async operation runs in the pool thread, when it completes, the coroutine is
- * resumed via the executor it was originally spawned with (the one passed to co_spawn). This way,
- * when the coroutine is resumed, it will continue in the same executor where it was suspended.
+ * So even though the async operation is invoked fromthe  pool thread, when it completes, the
+ * coroutine is resumed via the executor it was originally spawned with (the one passed to
+ * co_spawn). This way, when the coroutine is resumed, it will continue in the same executor
+ * where it was suspended.
  *
- * This behavior can be overriden by binding a (deferred or other) token to an executor.
+ * This behavior can be overriden by binding an executor to the \c deferred completion token.
  */
 TEST_F(AsyncInvoke, WHEN_count_after_await_THEN_counter_does_not_need_protection)
 {
@@ -172,7 +178,8 @@ TEST_F(AsyncInvoke, WHEN_async_invoke_without_token_THEN_uses_default_token)
 
 // -------------------------------------------------------------------------------------------------
 
-TEST_F(AsyncInvoke, WHEN_job_returns_error_THEN_is_thrown_by_future)
+/// This has ~30% TSAN failure with libc++, possibly because of missing TSAN instrumentation.
+TEST_F(AsyncInvoke, DISABLED_WHEN_job_returns_error_THEN_is_thrown_by_future)
 {
    namespace errc = boost::system::errc;
    auto future = async_invoke(pool, asio::use_future, [&](Duration duration) -> error_code
