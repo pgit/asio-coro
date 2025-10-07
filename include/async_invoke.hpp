@@ -33,33 +33,26 @@ template <BOOST_ASIO_EXECUTION_EXECUTOR Executor, typename F, typename... Args,
             asio::completion_token_for<CompletionToken, CompletionSignature>
 auto async_invoke(Executor& executor, CompletionToken&& token, F&& f, Args&&... args)
 {
-   using result_type = std::invoke_result_t<F, Args...>;
-
-   return asio::async_initiate<CompletionToken, void(result_type)>(
+   return asio::async_initiate<CompletionToken, CompletionSignature>(
       [](auto handler, Executor& pool, F f, Args... args) mutable
    {
-      auto ex = asio::get_associated_executor(handler, pool);
-      auto alloc = asio::get_associated_allocator(handler);
+      auto ex = get_associated_executor(handler, pool);
+      auto alloc = get_associated_allocator(handler);
 
-      asio::post(pool,
-                 asio::bind_allocator(alloc, [handler = std::move(handler),
-                                              work = make_work_guard(ex), f = std::move(f),
-                                              args = std::make_tuple(std::move(args)...)]() mutable
+      post(pool, bind_allocator(alloc, [handler = std::move(handler), work = make_work_guard(ex),
+                                        f = std::move(f),
+                                        args = std::make_tuple(std::move(args)...)]() mutable
       {
-         auto ex = asio::get_associated_executor(handler);
-         if constexpr (std::is_void_v<result_type>)
+         auto ex = get_associated_executor(handler);
+         if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>)
          {
             std::apply(std::move(f), std::move(args));
-            dispatch(ex, [handler = std::move(handler)] mutable { //
-               std::move(handler)();
-            });
+            dispatch(ex, std::move(handler));
          }
          else
          {
             auto result = std::apply(std::move(f), std::move(args));
-            dispatch(ex, [handler = std::move(handler), result = std::move(result)] mutable { //
-               std::move(handler)(std::move(result));
-            });
+            dispatch(ex, std::bind(std::move(handler), std::move(result)));
          }
       }));
    }, token, std::ref(executor), std::forward<F>(f), std::forward<Args>(args)...);
@@ -68,8 +61,10 @@ auto async_invoke(Executor& executor, CompletionToken&& token, F&& f, Args&&... 
 // -------------------------------------------------------------------------------------------------
 
 /**
- * Partial specialization with a default completion token (usually, 'deferred'). This is a bit
- * tricky because of the variadic args but works if enough concepts are in place.
+ * Function template overload with a default completion token (usually, 'deferred').
+ *
+ * This is a bit tricky because of the variadic args but works if enough concepts are in place
+ * to make them unambiguous.
  */
 template <BOOST_ASIO_EXECUTION_EXECUTOR Executor, typename F, typename... Args,
           typename CompletionToken = asio::default_completion_token_t<Executor>,

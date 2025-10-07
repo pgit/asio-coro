@@ -26,7 +26,7 @@ class AsyncInvoke : public ::testing::Test
 protected:
    io_context::executor_type executor{context.get_executor()};
    thread_pool::executor_type pool{thread_pool.get_executor()};
-   void run() { ::run(context); }
+   [[maybe_unused]] size_t run() { return ::run(context); }
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -81,20 +81,24 @@ TEST_F(AsyncInvoke, WHEN_in_completion_handler_THEN_counter_does_not_need_protec
 
 /**
  * Manually move execution of a coroutine to another executor. Note that it is not enough to just
- * post on the destination pool -- the completion handler itself has to be bound to it.
+ * post on the destination pool -- the completion handler itself has to be bound to it. This makes
+ * sense because we are not actually posting any work, but only scheduling a completion handler.
  */
 TEST_F(AsyncInvoke, WHEN_post_to_different_executor_THEN_coroutine_continues_there)
 {
+   size_t count = 0;
    auto executor_thread_id = std::this_thread::get_id();
    for (size_t i = 0; i < 20; ++i)
       co_spawn(executor, [&] mutable -> awaitable<void>
       {
-         co_await post(executor, bind_executor(pool));
+         co_await dispatch(executor, bind_executor(pool));
          EXPECT_NE(executor_thread_id, std::this_thread::get_id());
-         co_await post(pool, bind_executor(executor));
+         co_await dispatch(pool, bind_executor(executor));
          EXPECT_EQ(executor_thread_id, std::this_thread::get_id());
+         count++;
       }, detached);
    run();
+   EXPECT_EQ(count, 20);
 }
 
 // -------------------------------------------------------------------------------------------------
