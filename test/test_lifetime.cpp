@@ -63,7 +63,7 @@ TEST(Lifetime, WHEN_lambda_is_invoked_THEN_body_is_executed_immediately) // duh
 //
 // ... and invoking coroutines: ASIO coroutines are lazy!
 //
-TEST(Lifetime, WHEN_coroutine_is_invoked_THEN_body_is_not_executed_until_awaited)
+TEST(Lifetime, WHEN_coroutine_is_invoked_THEN_body_is_not_executed_immediately)
 {
    auto awaitable = std::invoke([] -> asio::awaitable<int>
    {
@@ -79,8 +79,8 @@ TEST(Lifetime, WHEN_coroutine_is_invoked_THEN_body_is_not_executed_until_awaited
 //
 TEST(Lifetime, WHEN_get_awaitable_from_lambda_THEN_closure_is_destroyed)
 {
-   static bool alive = true;
-   auto scope_exit = make_scope_exit([] { alive = false; });
+   bool alive = true;
+   auto scope_exit = make_scope_exit([&] { alive = false; });
 
    auto awaitable = std::invoke([scope_exit = std::move(scope_exit)]() -> asio::awaitable<int>
    {
@@ -93,8 +93,8 @@ TEST(Lifetime, WHEN_get_awaitable_from_lambda_THEN_closure_is_destroyed)
 
 TEST(Lifetime, WHEN_get_awaitable_from_lambda_THEN_coroutine_frame_is_still_alive)
 {
-   static bool alive = true;
-   auto scope_exit = make_scope_exit([] { alive = false; });
+   bool alive = true;
+   auto scope_exit = make_scope_exit([&] { alive = false; });
 
    auto awaitable = std::invoke([](auto) -> asio::awaitable<int>
    {
@@ -102,13 +102,13 @@ TEST(Lifetime, WHEN_get_awaitable_from_lambda_THEN_coroutine_frame_is_still_aliv
       co_return 143;
    }, std::move(scope_exit));
 
-   EXPECT_TRUE(alive); // now part of coroutine frame
+   EXPECT_TRUE(alive); // 'scope_exit' is now part of coroutine frame
 }
 
 TEST(Lifetime, WHEN_spawn_lambda_awaitable_THEN_closure_is_deleted)
 {
    static bool alive = true;
-   auto scope_exit = make_scope_exit([] { alive = false; });
+   auto scope_exit = make_scope_exit([&] { alive = false; });
 
    boost::asio::io_context context;
    auto future = co_spawn(
@@ -124,36 +124,42 @@ TEST(Lifetime, WHEN_spawn_lambda_awaitable_THEN_closure_is_deleted)
    EXPECT_EQ(future.get(), 143);
 }
 
+//
+// If a lambda produces an awaitable that is immediately awaited, the full-expression keeps the
+// lambda closure alive long enough.
+//
 TEST(Lifetime, WHEN_await_lambda_awaitable_THEN_closure_is_kept_alive_by_full_expression)
 {
    boost::asio::io_context context;
    auto future = co_spawn(
-      context.get_executor(),
-      std::invoke([]() -> asio::awaitable<int>
+      context.get_executor(), []() -> asio::awaitable<int>
       {
-         static bool alive = true;
-         auto scope_exit = make_scope_exit([] { alive = false; });
-         co_return co_await std::invoke([scope_exit = std::move(scope_exit)]() -> asio::awaitable<int>
+         bool alive = true;
+         auto scope_exit = make_scope_exit([&] { alive = false; });
+         co_return co_await std::invoke([&, scope_exit = std::move(scope_exit)]() -> asio::awaitable<int>
          {
             EXPECT_TRUE(alive);
             co_return 143;
          });
-      }),
+      },
       asio::use_future);
    context.run();
 
    EXPECT_EQ(future.get(), 143);
 }
 
+//
+// co_spawn() has an overload that takes callable, and keeps it alive until the coroutine is done.
+//
 TEST(Lifetime, WHEN_spawn_lambda_without_invoking_it_THEN_closure_is_kept_alive)
 {
-   static bool alive = true;
-   auto scope_exit = make_scope_exit([] { alive = false; });
+   bool alive = true;
+   auto scope_exit = make_scope_exit([&] { alive = false; });
 
    boost::asio::io_context context;
    auto future = co_spawn(
       context.get_executor(),
-      [scope_exit = std::move(scope_exit)]() -> asio::awaitable<int>
+      [&, scope_exit = std::move(scope_exit)]() -> asio::awaitable<int>
       {
          EXPECT_TRUE(alive);
          co_return 143;
