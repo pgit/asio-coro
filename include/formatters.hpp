@@ -101,7 +101,7 @@ struct std::formatter<Bytes>
       if (bs.bytes < 1024)
          return std::format_to(ctx.out(), "{} B", bs.bytes);
 
-      constexpr array units{"B", "KiB", "MiB", "GiB", "TiB", "PiB"};
+      constexpr array units{"bytes", "KiB", "MiB", "GiB", "TiB", "PiB"};
 
       size_t index = 0;
       double size = static_cast<double>(bs.bytes);

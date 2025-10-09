@@ -141,6 +141,10 @@ TEST_F(CompletionToken, WHEN_timer_completes_THEN_lambda_is_called)
 
 // -------------------------------------------------------------------------------------------------
 
+//
+// The following tests use std::{promise,future} and can produce false positive when run
+// with thread sanitizer. Also, this seems to be a problem specific to libc++ only.
+//
 TEST_F(CompletionToken, WHEN_timer_completes_THEN_future_is_fulfilled)
 {
    steady_timer timer(executor);

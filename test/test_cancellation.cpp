@@ -241,8 +241,8 @@ TEST_F(Cancellation, CancellationSlot)
       });
 
       co_await co_spawn(executor, log_stdout(out), bind_cancellation_slot(signal.slot()));
-      ADD_FAILURE(); // will not be executed on timeout
-      co_return 0;
+      ADD_FAILURE();
+      co_return co_await child.async_wait(); // will not be executed on timeout
    };
 
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
@@ -258,6 +258,7 @@ TEST_F(Cancellation, CancelAfter)
    test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await co_spawn(executor, log_stdout(out), cancel_after(150ms));
+      ADD_FAILURE();
       co_return co_await child.async_wait(); // will not be executed on timeout
    };
 
@@ -585,8 +586,9 @@ TEST_F(Cancellation, WHEN_redirect_cancellation_slot_manually_THEN_output_is_com
    test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto cs = co_await this_coro::cancellation_state;
-      auto awaitable = log_stdout(out) && async_execute(std::move(child),
-                                                 bind_cancellation_slot(cs.slot(), use_awaitable));
+      auto awaitable =
+         log_stdout(out) &&
+         async_execute(std::move(child), bind_cancellation_slot(cs.slot(), use_awaitable));
       auto status = co_await co_spawn(executor, std::move(awaitable),
                                       bind_cancellation_slot(cancellation_slot()));
       std::println("CANCELLED: {}", cs.cancelled());

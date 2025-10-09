@@ -86,24 +86,38 @@ TEST_F(AsyncInvoke, WHEN_in_completion_handler_THEN_counter_does_not_need_protec
  */
 TEST_F(AsyncInvoke, WHEN_post_to_different_executor_THEN_coroutine_continues_there)
 {
+   constexpr size_t N = 20;
    size_t count = 0;
    auto executor_thread_id = std::this_thread::get_id();
-   for (size_t i = 0; i < 20; ++i)
+   for (size_t i = 0; i < N; ++i)
       co_spawn(executor, [&] mutable -> awaitable<void>
       {
-         co_await dispatch(executor, bind_executor(pool));
-         EXPECT_NE(executor_thread_id, std::this_thread::get_id());
+         //
+         // To move this coroutine into another executor, we can use dispatch() with a completion
+         // token that is bound to the desired destination executor.
+         //
+         co_await dispatch(bind_executor(pool));
+         EXPECT_NE(executor_thread_id, std::this_thread::get_id()); // some pool thread
 
          std::println("Sleeping...");
          std::this_thread::sleep_for(100ms);
          std::println("Sleeping... done");
 
-         co_await dispatch(pool, bind_executor(executor));
+         //
+         // Here, the 'deferred' completion token does not have an associated executor. But as a
+         // fallback, the current coroutine's executor is used (the one we passed to co_spawn).
+         //
+         co_await dispatch(deferred);
          EXPECT_EQ(executor_thread_id, std::this_thread::get_id());
          count++;
       }, detached);
-   run();
-   EXPECT_EQ(count, 20);
+
+   //
+   // In the 'executor' we run() here, each coroutine is scheduled once after being spawned,
+   // and then again after the dispatch back to the original executor. Hence the N * 2.
+   //
+   EXPECT_EQ(run(), N * 2);
+   EXPECT_EQ(count, N);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -111,8 +125,6 @@ TEST_F(AsyncInvoke, WHEN_post_to_different_executor_THEN_coroutine_continues_the
 /**
  * This may be a little surprising: When using co_await with the 'deferred' completion token, that
  * token will inherit the completion executor of the coroutine. It is not the current executor.
- *
- * ChatGPT 5 has a surprisingly good explanation on the subject:
  *
  * When you co_await an Asio async operation (e.g., async_invoke(pool, ...)),
  * two executors are involved:

@@ -24,8 +24,11 @@ cmake --build build && build/bin/client -c 10
 
 To test interactively, use `socat`:
 ```bash
+# with line buffering
 socat STDIN TCP-CONNECT:[::1]:55555
-socat STDIN,raw,echo=0,icrnl,crlf,escape=0x03 TCP:[::1]:55555
+
+# raw
+socat STDIN,raw,echo=0,icrnl,escape=0x03 TCP:[::1]:55555
 ```
 
 To test echo speed, you can use `netcat` like this:
