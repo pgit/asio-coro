@@ -4,7 +4,10 @@
       {
          "label": "CMake Build (custom)",
          "type": "shell",
-         "command": "cmake --build build",
+          "command": "cmake",
+          "args": [
+            "--build", "build"
+          ],
          "group": {
             "kind": "build",
             "isDefault": true
@@ -20,6 +23,25 @@
             "panel": "shared",
             "showReuseMessage": true,
             "clear": false
+         }
+      },
+      {
+         "label": "CMake Build active file",
+         "type": "shell",
+         "command": "cmake",
+         "args": [
+            "--build", "build",
+            "--target", "${relativeFileDirname}/${fileBasenameNoExtension}"
+         ],
+         "group": {
+            "kind": "build",
+            "isDefault": false
+         },
+         "problemMatcher": [
+            "$gcc"
+         ],
+         "presentation": {
+            "reveal": "silent"
          }
       }
    ]

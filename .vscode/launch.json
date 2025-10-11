@@ -23,7 +23,8 @@
                     "text": "-gdb-set disassembly-flavor intel",
                     "ignoreFailures": true
                 }
-            ]
+            ],
+            "preLaunchTask": "CMake Build active file"
         },
         {
             "name":"(lldb)",
@@ -32,7 +33,8 @@
             "program": "${workspaceFolder}/build/${relativeFileDirname}/${fileBasenameNoExtension}",
             "initCommands": [
                 "command script import /usr/local/lib/lldb/lldb_coro_debugging.py"
-            ]
+            ],
+            "preLaunchTask": "CMake Build active file"
         }
     ]
 }
