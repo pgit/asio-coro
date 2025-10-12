@@ -1,3 +1,4 @@
+// https://github.com/boostorg/process/issues/516, fixed in Boost 1.90
 #include <boost/process/v2/environment.hpp>
 #include <boost/process/v2/process.hpp>
 

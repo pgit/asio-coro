@@ -35,15 +35,14 @@ awaitable<void> session(tcp::socket downstream)
 {
    auto executor = co_await this_coro::executor;
 
-   auto flags = tcp::resolver::numeric_service;
    tcp::resolver resolver(executor);
-   auto endpoints = co_await resolver.async_resolve("localhost", "55555", flags);
+   auto endpoints = co_await resolver.async_resolve("localhost", "55555");
 
    tcp::socket upstream(executor);
    auto endpoint = co_await async_connect(upstream, endpoints);
 
    auto [up, down] = co_await (forward(downstream, upstream) && forward(upstream, downstream));
-   std::println("forwarded {} upstream and {} downstream", Bytes(up), Bytes(down));
+   std::println("forwarded {} upstream and {} downstream", Bytes{up}, Bytes{down});
 }
 
 awaitable<void> server(tcp::acceptor a)
