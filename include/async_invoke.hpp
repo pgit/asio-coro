@@ -14,6 +14,27 @@ namespace asio = boost::asio;
 // =================================================================================================
 
 /**
+ * Binds all arguments to a callable, returning a nullary callable.
+ *
+ * This utility function takes a callable object \p f and a set of arguments \p args..., and
+ * returns a new callable that, when invoked with no arguments, calls \p f with the bound
+ * arguments. The bound arguments are stored in a tuple and moved when the returned callable is
+ * invoked.
+ *
+ * This is particularly useful for deferring the execution of a function with specific arguments,
+ * such as when posting tasks to an executor.
+ */
+template <typename F, typename... Args>
+   requires std::invocable<F, Args...>
+auto bind_all(F&& f, Args&&... args)
+{
+   return [f = std::forward<F>(f),
+           args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+      return std::apply(std::move(f), std::move(args));
+   };
+}
+
+/**
  * Asynchronously invokes a callable object on the specified executor and completes with the result.
  *
  * This function template schedules the provided callable \p f with arguments \p args... to be
@@ -47,7 +68,7 @@ auto async_invoke(Executor& executor, CompletionToken&& token, F&& f, Args&&... 
          if constexpr (std::is_void_v<std::invoke_result_t<F, Args...>>)
          {
             std::apply(std::move(f), std::move(args));
-            dispatch(ex, std::move(handler));
+            dispatch(ex, std::move(handler)(boost::system::error_code{}));
          }
          else
          {
