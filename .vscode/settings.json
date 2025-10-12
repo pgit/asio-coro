@@ -4,7 +4,7 @@
          "pattern": "build/test/*",
          "runTask": {
             "before": [
-               // "CMake Build (custom)"
+               "CMake Build"
             ]
          },
          "env": {
@@ -13,6 +13,17 @@
          "cwd": "${workspaceDirectory}"
       }
    ],
+   "testMate.cpp.debug.configTemplate":  {
+      "type": "cppvsdbg",
+      // "linux": { "type": "cppdbg", "MIMode": "gdb" },
+      "linux": { "type": "lldb" },
+      "program": "${exec}",
+      "args": "${argsArray}",
+      "cwd": "${cwd}",
+      "env": "${envObj}",
+      "environment": "${envObjArray}",
+      "sourceFileMap": "${sourceFileMapObj}",
+   },
    "testMate.cpp.test.parallelExecutionLimit": 8,
    "testMate.cpp.test.parallelExecutionOfExecutableLimit": 8
 }
