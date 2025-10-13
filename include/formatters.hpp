@@ -98,10 +98,10 @@ struct std::formatter<Bytes>
 
    auto format(const Bytes& bs, std::format_context& ctx) const
    {
-      if (bs.bytes < 1024)
-         return std::format_to(ctx.out(), "{} B", bs.bytes);
-
       constexpr array units{"bytes", "KiB", "MiB", "GiB", "TiB", "PiB"};
+
+      if (bs.bytes < 1024)
+         return std::format_to(ctx.out(), "{} {}", bs.bytes, units[0]);
 
       size_t index = 0;
       double size = static_cast<double>(bs.bytes);
