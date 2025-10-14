@@ -73,7 +73,11 @@ inline std::string what(const std::exception_ptr& ptr)
 
 constexpr auto log_exception()
 {
-   return [](const std::exception_ptr& ptr) { std::println("{}", what(ptr)); };
+   return [](const std::exception_ptr& ptr)
+   {
+      if (ptr)
+         std::println("{}", what(ptr));
+   };
 }
 
 template <typename... Args>
@@ -123,5 +127,26 @@ struct setpgid_initializer
       return {};
    }
 };
+
+// =================================================================================================
+
+enum AddressFamily : std::uint8_t
+{
+   ipv4,
+   ipv6
+};
+
+inline std::string_view to_string(AddressFamily family)
+{
+   switch (family)
+   {
+   case ipv4:
+      return "IPv4";
+   case ipv6:
+      return "IPv6";
+   default:
+      return "Unknown";
+   }
+}
 
 // =================================================================================================
