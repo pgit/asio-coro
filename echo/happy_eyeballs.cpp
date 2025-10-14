@@ -33,13 +33,13 @@ auto filter(const ip::basic_resolver_results<tcp>& endpoints, AddressFamily af)
  * @returns the connected TCP socket
  * @throws system_error
  */
-auto connect(std::string_view prefix, const ip::basic_resolver_results<tcp>& endpoints)
-   -> awaitable<tcp::socket>
+awaitable<tcp::socket> connect(std::string_view prefix,
+                               const ip::basic_resolver_results<tcp>& endpoints)
 {
    tcp::socket socket(co_await this_coro::executor);
    try
    {
-      co_await async_connect(socket, endpoints, cancel_after(2s));
+      co_await async_connect(socket, endpoints);
       std::println("{} connected to {}", prefix, socket.remote_endpoint());
    }
    catch (const boost::system::system_error& err)
@@ -52,10 +52,11 @@ auto connect(std::string_view prefix, const ip::basic_resolver_results<tcp>& end
 
 // -------------------------------------------------------------------------------------------------
 
-auto connect(std::string_view prefix, const ip::basic_resolver_results<tcp>& endpoints,
-             std::optional<std::chrono::milliseconds> delay) -> awaitable<tcp::socket>
+awaitable<tcp::socket> connect(std::string_view prefix,
+                               const ip::basic_resolver_results<tcp>& endpoints,
+                               std::chrono::milliseconds delay)
 {
-   co_await sleep(*delay);
+   co_await sleep(delay);
    co_return co_await connect(prefix, endpoints);
 };
 
@@ -64,8 +65,9 @@ auto connect(std::string_view prefix, const ip::basic_resolver_results<tcp>& end
 /// Open a TCP connect to one of the given endpoints, using the "Happy Eyeballs" algorithm.
 awaitable<tcp::socket> happy_eyeballs(ip::basic_resolver_results<tcp>& endpoints)
 {
-   auto result = co_await (connect("IPv4", filter(endpoints, AddressFamily::ipv4), 100ms) ||
-                           connect("IPv6", filter(endpoints, AddressFamily::ipv6)));
+   auto result =
+      co_await (connect("\x1b[1;32mIPv6\x1b[0m", filter(endpoints, AddressFamily::ipv6)) ||
+                connect("\x1b[1;34mIPv4\x1b[0m", filter(endpoints, AddressFamily::ipv4), 100ms));
 
    if (result.index() == 0)
       co_return std::get<0>(std::move(result));
@@ -83,7 +85,7 @@ awaitable<void> happy_eyeballs(std::string_view host, std::string_view service)
    tcp::resolver resolver(executor);
    auto endpoints = co_await resolver.async_resolve(host, service);
    for (auto& endpoint : endpoints)
-      std::println("👀 endpoint: {}", tcp::endpoint{endpoint});
+      std::println("😊👀 endpoint: {}", tcp::endpoint{endpoint});
 
    auto socket = co_await happy_eyeballs(endpoints);
    std::println("connected to {}", socket.remote_endpoint());
@@ -91,6 +93,7 @@ awaitable<void> happy_eyeballs(std::string_view host, std::string_view service)
 
 // -------------------------------------------------------------------------------------------------
 
+/// Usage: happy_eyeballs <HOST> <SERVICE>
 int main(int argc, char* argv[])
 {
    if (argc != 3)
