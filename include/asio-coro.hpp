@@ -132,17 +132,17 @@ struct setpgid_initializer
 
 enum AddressFamily : std::uint8_t
 {
-   ipv4,
-   ipv6
+   IPv4,
+   IPv6
 };
 
 inline std::string_view to_string(AddressFamily family)
 {
    switch (family)
    {
-   case ipv4:
+   case IPv4:
       return "IPv4";
-   case ipv6:
+   case IPv6:
       return "IPv6";
    default:
       return "Unknown";
