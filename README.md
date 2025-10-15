@@ -1,5 +1,5 @@
 # ASIO & CORO
-This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/doc/libs/1_87_0/doc/html/boost_asio.html).
+This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/libs/asio/).
 
 [![Build and run tests](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml)
 
@@ -14,7 +14,7 @@ After that, you can open a `*.cpp` file. This workspace is configured to use the
 There are several implementations of TCP echo servers in this project, for demonstration purposes.
 
 ```bash
-cmake --build build --target all -- && build/slides/echo_coro
+cmake --build build && build/echo/echo_coro
 ```
 
 Test client:
@@ -31,32 +31,9 @@ socat STDIN TCP-CONNECT:[::1]:55555
 socat STDIN,raw,echo=0,icrnl,escape=0x03 TCP:[::1]:55555
 ```
 
-To test echo speed, you can use `netcat` like this:
-```bash
-dd if=/dev/zero bs=1M count=512|nc -N localhost 55555|dd of=/dev/null
-```
-
-To simulate multiple clients:
-```bash
-for ((i=0; i<5; ++i))
-do
-   dd if=/dev/zero bs=1M count=512 | nc -N localhost 55555 >/dev/null&
-done; time wait
-```
-
 # Testcases
-A few examples are implement as Google Test units `test/test_*.cpp`. This way, we can easily run and debug them in Visual Studio Code, using [C++ TestMate](https://marketplace.visualstudio.com/items?itemName=matepek.vscode-catch2-test-adapter).
-
-## Manual Testing
-
-Example: 5 clients, each sending 512 MiB of data to a echo server listening on `[::1]:55555`:
+A lot of examples are implement as Google Test units `test/test_*.cpp`. This way, we can easily run and debug them in Visual Studio Code, using [C++ TestMate](https://marketplace.visualstudio.com/items?itemName=matepek.vscode-catch2-test-adapter).
 
 # Resources
 
-## Examples
-* [Boost ASIO C++20 Examples](https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/examples/cpp20_examples.html)
-
-
-## YT Playlist
-
-See [Playlist](doc/playlist.md).
+See [doc/resources.md](doc/resources.md).
