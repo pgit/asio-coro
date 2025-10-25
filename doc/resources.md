@@ -29,4 +29,5 @@
 
 ### Structured Concurrency
 * [Writing Safer Concurrent Code with Coroutines... - Lewis Baker - CppCon 2019](https://www.youtube.com/watch?v=1Wy5sq3s2rg)
+* [Structured Concurrency - Sebastiaan Koppe - DConf '22](https://www.youtube.com/watch?v=hJhNhIeq29U)
 
