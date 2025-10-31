@@ -2,7 +2,7 @@
 # https://github.com/microsoft/vscode-dev-containers/tree/main/containers/debian
 # https://github.com/pgit/cpp-devcontainer
 #
-FROM docker.io/psedoc/cpp-devcontainer:0.20 AS ci-base
+FROM docker.io/psedoc/cpp-devcontainer:0.21 AS ci-base
 
 #
 # Install 'ping' used by Process.* tests
