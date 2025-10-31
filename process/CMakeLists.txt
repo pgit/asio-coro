@@ -1,8 +1,4 @@
-include_directories("../include")
-link_libraries(asio_coro)
-
 file(GLOB SRC_FILES "*.cpp")
-
 foreach(src_file ${SRC_FILES})
    get_filename_component(exe_name ${src_file} NAME_WE)
    add_executable(${exe_name} ${src_file})

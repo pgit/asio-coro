@@ -13,8 +13,12 @@ using namespace std::chrono_literals;
 // =================================================================================================
 
 /// Filter list of \p endpoints for given address family \p af.
-auto filter(const ip::basic_resolver_results<tcp>& endpoints, AddressFamily af)
+ip::basic_resolver_results<tcp> filter(const ip::basic_resolver_results<tcp>& endpoints,
+                                       AddressFamily af)
 {
+   if (endpoints.empty())
+      return {};
+
    auto range = endpoints | //
                 std::views::transform([](auto& r) { return r.endpoint(); }) |
                 std::views::filter([&](const auto& ep)
@@ -56,12 +60,20 @@ awaitable<tcp::socket> connect(std::string_view prefix,
 
 // -------------------------------------------------------------------------------------------------
 
-awaitable<tcp::socket> connect(std::string_view prefix,
-                               const ip::basic_resolver_results<tcp>& endpoints,
-                               std::chrono::milliseconds delay)
+awaitable<tcp::socket> connect_ipv4(std::string_view prefix,
+                                    const ip::basic_resolver_results<tcp>& endpoints,
+                                    steady_timer& timer)
 {
-   co_await sleep(delay);
-   co_return co_await connect(prefix, endpoints);
+   auto scope_exit = make_scope_exit([&] { timer.cancel(); });
+   co_return co_await connect(prefix, filter(endpoints, IPv6));
+};
+
+awaitable<tcp::socket> connect_ipv6(std::string_view prefix,
+                                    const ip::basic_resolver_results<tcp>& endpoints,
+                                    steady_timer& timer)
+{
+   std::ignore = co_await timer.async_wait(as_tuple);
+   co_return co_await connect(prefix, filter(endpoints, IPv4));
 };
 
 // =================================================================================================
@@ -69,9 +81,15 @@ awaitable<tcp::socket> connect(std::string_view prefix,
 /// Open a TCP connection to one of the given endpoints, preferring IPv6 using the 😊👀 algorithm.
 awaitable<tcp::socket> happy_eyeballs(const ip::basic_resolver_results<tcp>& endpoints)
 {
-   auto variant =
-      co_await (connect("\x1b[1;32mIPv6\x1b[0m", filter(endpoints, AddressFamily::IPv6)) ||
-                connect("\x1b[1;34mIPv4\x1b[0m", filter(endpoints, AddressFamily::IPv4), 200ms));
+   //
+   // If IPv6 fails before the timer expires, we want to start IPv4 immediately. For this, the
+   // timer is passed to the IPv6 attempt and cancelled when it finishes, successfully or not.
+   // Using a timer explicitly this way does not cancel any coroutines automatically.
+   //
+   steady_timer timer(co_await this_coro::executor);
+   timer.expires_after(5ms);
+   auto variant = co_await (connect_ipv4("\x1b[1;32mIPv6\x1b[0m", endpoints, timer) ||
+                            connect_ipv6("\x1b[1;34mIPv4\x1b[0m", endpoints, timer));
 
    //
    // The return type of operator|| is a std::variant<> of the return types of the two

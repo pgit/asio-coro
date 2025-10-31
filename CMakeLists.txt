@@ -25,9 +25,6 @@ add_link_options(-stdlib=libc++ -lstdc++fs)
 # use std::filesystem instead of boost::filesystem
 add_compile_definitions(BOOST_PROCESS_USE_STD_FS)
 
-# avoid system executor
-add_compile_definitions(BOOST_ASIO_NO_TS_EXECUTORS)
-
 # --------------------------------------------------------------------------------------------------
 #
 # find boost
@@ -44,8 +41,13 @@ link_libraries(Boost::thread Boost::atomic)
 
 enable_testing(false)
 add_subdirectory(lib)
+
+include_directories(include)
+link_libraries(asio_coro)
+
 add_subdirectory(bin)
 add_subdirectory(echo)
+add_subdirectory(net)
 add_subdirectory(process)
 add_subdirectory(test)
 
