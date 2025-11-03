@@ -21,11 +21,11 @@ using Duration = std::chrono::milliseconds;
 class AsyncInvoke : public ::testing::Test
 {
    io_context context;
-   thread_pool thread_pool{10};
+   thread_pool thread_pool_{10};
 
 protected:
    io_context::executor_type executor{context.get_executor()};
-   thread_pool::executor_type pool{thread_pool.get_executor()};
+   thread_pool::executor_type pool{thread_pool_.get_executor()};
    [[maybe_unused]] size_t run() { return ::run(context); }
 };
 

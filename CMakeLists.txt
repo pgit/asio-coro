@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.30)
 project(asio-coro VERSION 0.0.1)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED On)
+set(CMAKE_EXPORT_COMPILE_COMMANDS On)
+
+if (DEFINED ENV{GITHUB_ACTIONS})
+    add_compile_definitions(GITHUB_ACTIONS)
+endif()
 
 # debug and sanitizer options
 if (CMAKE_BUILD_TYPE MATCHES Debug)

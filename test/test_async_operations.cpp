@@ -88,6 +88,11 @@ public:
       }, token);
    }
 
+   //
+   // FIXME: Have a look at how operator&& is implemented in asio to see how they handle
+   //        non-default-constructible types. There is a wrapper called awaitable_wrap<> that
+   //        wraps coroutines returning non-default-constructible types in std::optional.
+   //
    template <BOOST_ASIO_COMPLETION_TOKEN_FOR(CompleteNoDefault) CompletionToken>
    static auto async_complete_no_default(CompletionToken&& token)
    {
@@ -540,10 +545,10 @@ TEST(Threads, WHEN_posting_between_contexts_THEN_execution_switches_threads)
    {
       EXPECT_EQ(std::this_thread::get_id(), this_thread_id);
 
-      co_await post(context[1], bind_executor(context[1]));
+      co_await dispatch(bind_executor(context[1]));
       EXPECT_EQ(std::this_thread::get_id(), other_thread_id);
 
-      co_await post(context[0], bind_executor(context[0]));
+      co_await dispatch(deferred);
       EXPECT_EQ(std::this_thread::get_id(), this_thread_id);
    }, detached); // don't invoke lambda here and let co_spawn do that -- keeps the closure alive
 
