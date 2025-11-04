@@ -87,7 +87,7 @@ awaitable<tcp::socket> happy_eyeballs(const ip::basic_resolver_results<tcp>& end
    // Using a timer explicitly this way does not cancel any coroutines automatically.
    //
    steady_timer timer(co_await this_coro::executor);
-   timer.expires_after(5ms);
+   timer.expires_after(200ms);
    auto variant = co_await (connect_ipv4("\x1b[1;32mIPv6\x1b[0m", endpoints, timer) ||
                             connect_ipv6("\x1b[1;34mIPv4\x1b[0m", endpoints, timer));
 
