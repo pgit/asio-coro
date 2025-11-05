@@ -30,7 +30,7 @@ Fully asynchronous implementation in classic ASIO style with callbacks.
 
 Pasted as an image to illustrate the complicated control flow.
 
-![alt text](async.png)
+![async](async.png)
 
 # As-Sync
 

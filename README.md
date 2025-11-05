@@ -1,7 +1,10 @@
 # ASIO & CORO
-This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/libs/asio/).
+This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/libs/asio/).   [![Build and run tests](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml)
 
-[![Build and run tests](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml)
+## Slides
+
+![async](doc/slides-small.jpg)\
+[ASIO & CORO - Part I - From Sync to Async to As-Sync.pdf](doc/part1.pdf)
 
 ## Development Devcontainer
 This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in [GitHub Codespaces](https://github.com/features/codespaces). The container image is based on [CPP Devcontainer](https://github.com/pgit/cpp-devcontainer), which contains recent LLVM and Boost versions.
