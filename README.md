@@ -1,5 +1,7 @@
 # ASIO & CORO
-This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/libs/asio/).   [![Build and run tests](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml)
+This is a collection of samples for using C++20 coroutines with [Boost ASIO](https://www.boost.org/libs/asio/).
+
+[![Build and run tests](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/pgit/asio-coro/actions/workflows/build-and-test.yml)
 
 ## Slides
 
