@@ -5,8 +5,7 @@ This is a collection of samples for using C++20 coroutines with [Boost ASIO](htt
 
 ## Slides
 
-![async](doc/slides-small.jpg)\
-[ASIO & CORO - Part I - From Sync to Async to As-Sync.pdf](doc/part1.pdf)
+<a href="doc/part1.pdf" class="image fit"><img src="doc/slides-small.jpg" alt=""></a>
 
 ## Development Devcontainer
 This project is prepared to run in a [Visual Studio Code Development Container](https://code.visualstudio.com/docs/devcontainers/containers). It also runs in [GitHub Codespaces](https://github.com/features/codespaces). The container image is based on [CPP Devcontainer](https://github.com/pgit/cpp-devcontainer), which contains recent LLVM and Boost versions.
