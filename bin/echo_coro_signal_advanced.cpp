@@ -1,0 +1,193 @@
+#include "asio-coro.hpp"
+
+#include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/asio/experimental/channel.hpp>
+
+#include <map>
+#include <random>
+
+using enum cancellation_type;
+using namespace experimental::awaitable_operators;
+
+awaitable<void> session(tcp::socket& socket)
+{
+   // by default, an awaitable<> coroutine reacts to 'terminal' cancellation only
+   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+
+   std::array<char, 64 * 1024> data;
+   for (;;)
+   {
+      size_t n = co_await socket.async_read_some(buffer(data));
+      co_await async_write(socket, buffer(data, n));
+   }
+}
+
+awaitable<void> shutdown(tcp::socket& socket)
+{
+   std::println("shutdown...");
+   // co_await async_write(socket, buffer("goodbye\n"sv));
+   static thread_local std::mt19937 rng{std::random_device{}()};
+   static thread_local std::uniform_int_distribution<int> dist(100, 1500);
+   co_await sleep(std::chrono::milliseconds(dist(rng)));
+   socket.shutdown(boost::asio::socket_base::shutdown_both);
+   std::println("shutdown... done");
+   co_return;
+}
+
+awaitable<void> cancellable_session(tcp::socket socket)
+{
+   auto cs = co_await this_coro::cancellation_state;
+   auto ex = co_await this_coro::executor;
+
+   //
+   // For maximum flexibility, allow all cancellation types (total, partial terminal) and
+   // don't throw when co_wait'ing something after cancellation. With this setup, we run
+   // the actual session coroutine.
+   //
+   co_await this_coro::throw_if_cancelled(false);
+   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+
+   // Finally, run session. Catch errors and re-throw anything that is not about cancellation.
+   auto [ep] = co_await co_spawn(ex, session(socket), as_tuple);
+   if (ep && cs.cancelled() == none)
+      throw system_error{code(ep)};
+
+   // React to terminal cancellation immediately.
+   if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
+      throw system_error{error::operation_aborted};
+
+   // During shutdown, react to 'terminal' cancellation only.
+   co_await this_coro::reset_cancellation_state(enable_terminal_cancellation());
+   co_await shutdown(socket);
+
+   // If we have been cancelled during shutdown, report so.
+   if (cs.cancelled() != cancellation_type::none)
+      throw system_error{error::operation_aborted};
+}
+
+awaitable<void> server(tcp::acceptor acceptor)
+{
+   auto cs = co_await this_coro::cancellation_state;
+   auto ex = co_await this_coro::executor;
+
+   co_await this_coro::throw_if_cancelled(false);
+
+   //
+   // The fact that cancellation_signal is not copyable is not surprising, but it is also not
+   // movable. This makes it a little difficult to handle, and we have to use a unique ptr.
+   //
+   bool server_alive = true;
+   auto scope_exit = make_scope_exit([&]() { server_alive = false; });
+   std::map<size_t, std::unique_ptr<cancellation_signal>> sessions;
+   experimental::channel<void(error_code)> channel(ex);
+
+   //
+   // Main accept loop.
+   // For each new connection, move the socket into a new coroutine.
+   // For cancellation, store a cancellation signal.
+   //
+   for (size_t id = 0;; id++)
+   {
+      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+      auto [ec, socket] = co_await acceptor.async_accept(as_tuple);
+      if (cs.cancelled() == cancellation_type::total)
+      {
+         std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
+         for (auto& session : sessions)
+            session.second->emit(cs.cancelled());
+         continue;
+      }
+      else if (ec)
+      {
+         std::println("accept: {}", ec.message());
+         break;
+      }
+
+      auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
+      std::println("number of active sessions: {}", sessions.size());
+      co_spawn(ex, cancellable_session(std::move(socket)),
+               cancel_after(10s, cancellation_type::total,
+                            bind_cancellation_slot(it->second->slot(),
+                                                   [&, id](const std::exception_ptr& ep)
+      {
+         assert(server_alive);
+         sessions.erase(id);
+         std::println("session {} finished: {}, {} sessions left", id, what(ep), sessions.size());
+         std::ignore = channel.try_send(error_code{});
+      })));
+   }
+
+   std::println("-----------------------------------------------------------------------------");
+
+   //
+   // Forward cancellation to spawned coroutines.
+   //
+   std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
+   for (auto& session : sessions)
+      session.second->emit(cs.cancelled());
+
+   std::println("-----------------------------------------------------------------------------");
+
+   //
+   // Wait until all coroutines have finished.
+   //
+   // The cannel is notified every time after a session is removed.
+   //
+   std::println("server: waiting for sessions to complete...");
+   while (!sessions.empty())
+   {
+      co_await this_coro::reset_cancellation_state(enable_terminal_cancellation());
+      auto [ec] = co_await channel.async_receive(as_tuple);
+      if (cs.cancelled() != cancellation_type::none)
+      {
+         std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
+         for (auto& session : sessions)
+            session.second->emit(cs.cancelled());
+      }
+   }
+   std::println("server: waiting for sessions to complete... done");
+
+   std::println("==============================================================================");
+}
+
+awaitable<void> signal_handling(cancellation_signal& signal)
+{
+   auto executor = co_await this_coro::executor;
+   signal_set signals(executor, SIGINT, SIGTERM, SIGTSTP);
+   for (;;)
+   {
+      auto [ec, signum] = co_await signals.async_wait(as_tuple);
+      if (ec == error::operation_aborted)
+         break;
+
+      std::println(" {}", strsignal(signum));
+
+      switch (signum)
+      {
+      case SIGTSTP:
+         signal.emit(cancellation_type::total);
+         break;
+      case SIGINT:
+         signal.emit(cancellation_type::partial);
+         break;
+      case SIGTERM:
+         signal.emit(cancellation_type::terminal);
+         break;
+      }
+   }
+}
+
+awaitable<void> with_signal_handling(awaitable<void> task)
+{
+   cancellation_signal signal;
+   co_await (signal_handling(signal) ||
+             co_spawn(co_await this_coro::executor, std::move(task),
+                      bind_cancellation_slot(signal.slot(), use_awaitable)));
+}
+
+int main()
+{
+   io_context context;
+   co_spawn(context, with_signal_handling(server({context, {tcp::v6(), 55555}})), detached);
+   context.run();
+}
