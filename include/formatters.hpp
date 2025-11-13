@@ -38,11 +38,43 @@ struct std::formatter<ip::address> : std::formatter<std::string>
 template <>
 struct std::formatter<ip::tcp::endpoint> : std::formatter<std::string>
 {
+   bool colored = false;
+
+   constexpr auto parse(std::format_parse_context& ctx)
+   {
+      auto it = ctx.begin();
+      auto end = ctx.end();
+
+      // accept optional 'c' specifier for colored output (e.g. "{:c}")
+      if (it != end && *it == 'c')
+      {
+         colored = true;
+         ++it;
+      }
+
+      if (it != end && *it != '}')
+         throw std::format_error("invalid format for ip::tcp::endpoint");
+
+      return it;
+   }
+
    auto format(const ip::tcp::endpoint& endpoint, std::format_context& ctx) const
    {
-      std::ostringstream stream;
-      stream << ip::tcp::endpoint{normalize(endpoint.address()), endpoint.port()};
-      return std::formatter<std::string>::format(std::move(stream).str(), ctx);
+      auto ep = tcp::endpoint{normalize(endpoint.address()), endpoint.port()};
+      if (colored)
+      {
+         if (ep.address().is_v4())
+            return std::format_to(ctx.out(), "\x1b[35m{}\x1b[0m:{}", ep.address(), ep.port());
+         else
+            return std::format_to(ctx.out(), "[\x1b[34m{}\x1b[0m]:{}", ep.address(), ep.port());
+      }
+      else
+      {
+         if (ep.address().is_v4())
+            return std::format_to(ctx.out(), "{}:{}", ep.address(), ep.port());
+         else
+            return std::format_to(ctx.out(), "[{}]:{}", ep.address(), ep.port());
+      }
    }
 };
 

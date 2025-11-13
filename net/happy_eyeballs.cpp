@@ -48,7 +48,7 @@ awaitable<tcp::socket> connect(std::string_view prefix,
    try
    {
       co_await async_connect(socket, endpoints);
-      std::println("{} connected to {}", prefix, socket.remote_endpoint());
+      std::println("{} connected to {:c}", prefix, socket.remote_endpoint());
    }
    catch (const boost::system::system_error& err)
    {
@@ -60,7 +60,7 @@ awaitable<tcp::socket> connect(std::string_view prefix,
 
 // -------------------------------------------------------------------------------------------------
 
-awaitable<tcp::socket> connect_ipv4(std::string_view prefix,
+awaitable<tcp::socket> connect_ipv6(std::string_view prefix,
                                     const ip::basic_resolver_results<tcp>& endpoints,
                                     steady_timer& timer)
 {
@@ -68,7 +68,7 @@ awaitable<tcp::socket> connect_ipv4(std::string_view prefix,
    co_return co_await connect(prefix, filter(endpoints, IPv6));
 };
 
-awaitable<tcp::socket> connect_ipv6(std::string_view prefix,
+awaitable<tcp::socket> connect_ipv4(std::string_view prefix,
                                     const ip::basic_resolver_results<tcp>& endpoints,
                                     steady_timer& timer)
 {
@@ -88,8 +88,8 @@ awaitable<tcp::socket> happy_eyeballs(const ip::basic_resolver_results<tcp>& end
    //
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(200ms);
-   auto variant = co_await (connect_ipv4("\x1b[1;32mIPv6\x1b[0m", endpoints, timer) ||
-                            connect_ipv6("\x1b[1;34mIPv4\x1b[0m", endpoints, timer));
+   auto variant = co_await (connect_ipv6("\x1b[34mIPv6\x1b[0m", endpoints, timer) ||
+                            connect_ipv4("\x1b[35mIPv4\x1b[0m", endpoints, timer));
 
    //
    // The return type of operator|| is a std::variant<> of the return types of the two
@@ -110,7 +110,7 @@ awaitable<tcp::socket> happy_eyeballs(std::string_view host, std::string_view se
    tcp::resolver resolver(co_await this_coro::executor);
    auto endpoints = co_await resolver.async_resolve(host, service);
    for (auto& endpoint : endpoints)
-      std::println("endpoint: {}", tcp::endpoint{endpoint});
+      std::println("endpoint: {:c}", tcp::endpoint{endpoint});
 
    co_return co_await happy_eyeballs(endpoints);
 }
@@ -119,7 +119,7 @@ awaitable<tcp::socket> happy_eyeballs(std::string_view host, std::string_view se
 awaitable<void> test_happy_eyeballs(std::string_view host, std::string_view service)
 {
    auto socket = co_await (happy_eyeballs(host, service));
-   std::println("😊👀 connected to {}", socket.remote_endpoint());
+   std::println("😊👀 connected to {:c}", socket.remote_endpoint());
 }
 
 // -------------------------------------------------------------------------------------------------
