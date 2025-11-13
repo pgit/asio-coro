@@ -25,7 +25,8 @@ public:
 private:
    /*
     * Write as much data to the socket as possible, until either the configured limit has been
-    * reached or this coroutine is cancelled.
+    * reached or this coroutine is cancelled. We don't care about the data that is written, so
+    * that is just an uninitialized vector.
     */
    awaitable<size_t> write_loop(tcp::socket& socket)
    {

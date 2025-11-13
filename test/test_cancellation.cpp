@@ -26,7 +26,7 @@ class Cancellation : public ProcessBase, public testing::Test
 {
 protected:
    void SetUp() override { EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(1)); }
-   void TearDown() override { run(); } // or runDebug()
+   void TearDown() override { runDebug(); } // or runDebug()
 
    using ProcessBase::run;
 
@@ -87,7 +87,7 @@ protected:
 //
 TEST_F(Cancellation, Ping)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       std::println("execute: communicating...");
       co_await log_stdout(out);
@@ -113,7 +113,7 @@ TEST_F(Cancellation, Ping)
 //
 TEST_F(Cancellation, PingSpawned)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await co_spawn(executor, log_stdout(out));
       co_return co_await child.async_wait();
@@ -128,7 +128,8 @@ TEST_F(Cancellation, PingSpawned)
 
 TEST_F(Cancellation, PingParallelGroup)
 {
-   testWithErr = [&](readable_pipe out, readable_pipe err, bp::process child) -> awaitable<ExitCode>
+   testWithErr = [this](readable_pipe out, readable_pipe err,
+                        bp::process child) -> awaitable<ExitCode>
    {
       co_await (log_stdout(out) && log_stderr(err));
       co_return co_await child.async_wait();
@@ -147,7 +148,7 @@ TEST_F(Cancellation, PingParallelGroup)
 //
 TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_exception_is_thrown)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       steady_timer timer(executor);
       timer.expires_after(150ms);
@@ -175,7 +176,7 @@ TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_exception_is_thrown)
 //
 TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       steady_timer timer(executor);
       timer.expires_after(150ms);
@@ -197,7 +198,7 @@ TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none
 //
 TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printed)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       steady_timer timer(executor);
       timer.expires_after(150ms);
@@ -229,7 +230,7 @@ TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printe
 //
 TEST_F(Cancellation, CancellationSlot)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       cancellation_signal signal;
       steady_timer timer(executor);
@@ -255,7 +256,7 @@ TEST_F(Cancellation, CancellationSlot)
 //
 TEST_F(Cancellation, CancelAfter)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await co_spawn(executor, log_stdout(out), cancel_after(150ms));
       ADD_FAILURE();
@@ -272,7 +273,7 @@ TEST_F(Cancellation, CancelAfter)
 //
 TEST_F(Cancellation, CancelFixture)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await log_stdout(out);
       co_return co_await child.async_wait(); // will not be executed on timeout
@@ -294,7 +295,7 @@ TEST_F(Cancellation, CancelFixture)
 //
 TEST_F(Cancellation, WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_await)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       try
       {
@@ -318,7 +319,7 @@ TEST_F(Cancellation, WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_awa
 //
 TEST_F(Cancellation, WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto [ec] = co_await co_spawn(executor, log_stdout(out), as_tuple);
       std::println("log completed with: {}", what(ec));
@@ -339,7 +340,7 @@ TEST_F(Cancellation, WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await
 //
 TEST_F(Cancellation, WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_next_await)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto [ec] = co_await co_spawn(executor, log_stdout(out), as_tuple);
       EXPECT_TRUE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
@@ -359,7 +360,7 @@ TEST_F(Cancellation, WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_nex
 //
 TEST_F(Cancellation, WHEN_throw_if_cancelled_is_set_to_false_THEN_does_not_throw_on_next_await)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto [ec] = co_await co_spawn(executor, log_stdout(out), as_tuple);
       co_await this_coro::throw_if_cancelled(false);
@@ -379,7 +380,7 @@ TEST_F(Cancellation, WHEN_throw_if_cancelled_is_set_to_false_THEN_does_not_throw
 //
 TEST_F(Cancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await co_spawn(executor, log_stdout(out), as_tuple);
       co_await this_coro::reset_cancellation_state();
@@ -415,11 +416,12 @@ TEST_F(Cancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
 //
 TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_pipe) // UB
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_spawn(executor, log_stdout(out), detached);
       co_return co_await async_execute(std::move(child));
    };
+
    EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
@@ -429,7 +431,7 @@ TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_p
 // -------------------------------------------------------------------------------------------------
 
 //
-// std::promise has two very interesting properties:
+// The use_promise completion token has two very interesting properties:
 // 1) Similar to the 'detached' completion token, the operation is started eagerly.
 // 2) When the promise is destroyed, the operation is cancelled.
 //
@@ -439,9 +441,11 @@ TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_p
 //         async operation catches the cancellation errors and decides to continue anyway,
 //         that will happen later, after the parent frame has been destroyed.
 //
+//         There is no such thing as an "async destructor".
+//
 TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_started_immediately)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto promise = co_spawn(executor, log_stdout(out), use_promise);
       co_return co_await async_execute(std::move(child));
@@ -467,7 +471,7 @@ TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_started_immediately)
 //
 TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destruction)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       {
          auto promise = co_spawn(executor, log_stdout(out), use_promise);
@@ -494,7 +498,7 @@ TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destruction)
 //
 TEST_F(Cancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await this_coro::throw_if_cancelled(false);
       auto promise = co_spawn(executor, log_stdout(out), use_promise);
@@ -519,7 +523,7 @@ TEST_F(Cancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
 //
 TEST_F(Cancellation, WHEN_parallel_group_is_cancelled_total_THEN_logging_continues)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto [order, ec, exit_code, ep] =
          co_await make_parallel_group( // on 'total' cancellation, ...
@@ -563,7 +567,7 @@ static awaitable<ExitCode> async_execute_enable_total(bp::process&& child)
 
 TEST_F(Cancellation, WHEN_parallel_group_operator_THEN_cancellation_fails)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto cs = co_await this_coro::cancellation_state;
       // auto awaitable = (async_execute(std::move(child), use_awaitable) && log(out)); // FAILS
@@ -581,9 +585,15 @@ TEST_F(Cancellation, WHEN_parallel_group_operator_THEN_cancellation_fails)
 
 // -------------------------------------------------------------------------------------------------
 
+//
+// Here, we redirect the cancellation slot of the 'test' coroutine directly to async_execute(), and
+// to async_execute() ONLY. That is easy to do, but we also have to make sure that the default
+// forwarding behaviour is not applied to co_spawn() as well. So we bind an empty cancellation slot
+// to the co_spawn() completion token instead:
+//
 TEST_F(Cancellation, WHEN_redirect_cancellation_slot_manually_THEN_output_is_complete)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto cs = co_await this_coro::cancellation_state;
       auto awaitable =
@@ -608,7 +618,7 @@ TEST_F(Cancellation, WHEN_redirect_cancellation_slot_manually_THEN_output_is_com
 //
 TEST_F(Cancellation, WHEN_child_is_terminated_THEN_exits_with_sigterm)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto promise = co_spawn(executor, log_stdout(out), use_promise);
       co_return co_await async_execute(std::move(child));
@@ -626,7 +636,7 @@ TEST_F(Cancellation, WHEN_child_is_terminated_THEN_exits_with_sigterm)
 //
 TEST_F(Cancellation, WHEN_child_is_killed_THEN_exits_with_sigkill)
 {
-   test = [&](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto promise = co_spawn(executor, log_stdout(out), use_promise);
       co_return co_await async_execute(std::move(child));

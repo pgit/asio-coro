@@ -83,8 +83,9 @@ awaitable<void> server(tcp::acceptor acceptor)
 
    //
    // Main accept loop.
-   // For each new connection, move the socket into a new coroutine.
-   // For cancellation, store a cancellation signal.
+   //
+   // For each accepted connection, move the socket into a new coroutine. For cancellation, create
+   // a cancellation signal and bind it's slot to the completion handler of the coroutine.
    //
    for (size_t id = 0;; id++)
    {
@@ -106,15 +107,13 @@ awaitable<void> server(tcp::acceptor acceptor)
       auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
       std::println("number of active sessions: {}", sessions.size());
       co_spawn(ex, cancellable_session(std::move(socket)),
-               cancel_after(10s, cancellation_type::total,
-                            bind_cancellation_slot(it->second->slot(),
-                                                   [&, id](const std::exception_ptr& ep)
+               bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
       {
          assert(server_alive);
          sessions.erase(id);
          std::println("session {} finished: {}, {} sessions left", id, what(ep), sessions.size());
          std::ignore = channel.try_send(error_code{});
-      })));
+      }));
    }
 
    std::println("-----------------------------------------------------------------------------");
@@ -152,14 +151,10 @@ awaitable<void> server(tcp::acceptor acceptor)
 
 awaitable<void> signal_handling(cancellation_signal& signal)
 {
-   auto executor = co_await this_coro::executor;
-   signal_set signals(executor, SIGINT, SIGTERM, SIGTSTP);
+   signal_set signals(co_await this_coro::executor, SIGINT, SIGTERM, SIGTSTP);
    for (;;)
    {
-      auto [ec, signum] = co_await signals.async_wait(as_tuple);
-      if (ec == error::operation_aborted)
-         break;
-
+      auto signum = co_await signals.async_wait();
       std::println(" {}", strsignal(signum));
 
       switch (signum)

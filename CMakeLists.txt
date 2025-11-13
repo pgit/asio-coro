@@ -42,6 +42,13 @@ find_package(Threads)
 link_libraries(Threads::Threads)
 link_libraries(Boost::thread Boost::atomic)
 
+#
+# range-v3 -- FIXME: needed only for views:chunked(),
+#                    as the libc++ version doesn't seem to be available, yet
+#
+include_directories(/usr/local/include/range-v3)
+add_compile_options(-Wno-deprecated-declarations) # needed for ranges/v3 starting with clang 19
+
 # --------------------------------------------------------------------------------------------------
 
 enable_testing(false)

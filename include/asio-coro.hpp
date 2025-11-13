@@ -37,7 +37,7 @@ inline error_code code(const std::exception_ptr& ptr)
       {
          return code(mex.first_exception());
       }
-      catch (boost::system::system_error& ex)
+      catch (system_error& ex)
       {
          return ex.code();
       }

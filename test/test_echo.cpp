@@ -64,7 +64,7 @@ public:
 
       ip::tcp::socket socket(executor);
       co_await socket.async_connect(endpoint);
-      std::println("connected to {}", socket.remote_endpoint());
+      std::println("connected to {:c}", socket.remote_endpoint());
 
       auto task = test(std::move(socket));
       auto [ep] = co_await co_spawn(executor, std::move(task), cancel_after(timeout, as_tuple));

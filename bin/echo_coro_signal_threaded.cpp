@@ -28,7 +28,7 @@ awaitable<void> server(tcp::acceptor acceptor)
       acceptor.cancel();
       auto lock = std::lock_guard(mutex);
       for (auto& socket : sockets)
-         socket.second.cancel();
+         socket.second.shutdown(socket_base::shutdown_both);
    });
 
    //
@@ -69,7 +69,7 @@ awaitable<void> server(tcp::acceptor acceptor)
    while (!sockets.empty())
    {
       lock.unlock();
-      co_await post(executor, asio::deferred);
+      co_await post(deferred);
       lock.lock();
    }
 
