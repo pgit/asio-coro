@@ -87,10 +87,36 @@ awaitable<void> server(tcp::acceptor acceptor)
    // For each accepted connection, move the socket into a new coroutine. For cancellation, create
    // a cancellation signal and bind it's slot to the completion handler of the coroutine.
    //
-   for (size_t id = 0;; id++)
+   for (size_t id = 0;;)
    {
       co_await this_coro::reset_cancellation_state(enable_total_cancellation());
       auto [ec, socket] = co_await acceptor.async_accept(as_tuple);
+
+      //
+      // If accepting succeeded, always store the new connection so that it can be properly
+      // cancelled if needed. This may also happen despite cancellation.
+      //
+      if (!ec)
+      {
+         auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
+         std::println("number of active sessions: {}", sessions.size());
+         co_spawn(ex, cancellable_session(std::move(socket)),
+                  bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
+         {
+            assert(server_alive);
+            sessions.erase(id);
+            std::println("session {} finished: {}, {} sessions left", id, what(ep),
+                         sessions.size());
+            std::ignore = channel.try_send(error_code{});
+         }));
+         ++id;
+      }
+
+      //
+      // On 'total' cancellation, cancel all currently active sessions, but continue accepting.
+      // Note that async_accept() may even still have completed successfully before. In this
+      // situation, the newly accepted connection is cancelled immediately.
+      //
       if (cs.cancelled() == cancellation_type::total)
       {
          std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
@@ -98,22 +124,19 @@ awaitable<void> server(tcp::acceptor acceptor)
             session.second->emit(cs.cancelled());
          continue;
       }
-      else if (ec)
+
+      //
+      // Again, it is not enough to just check for 'ec', as we might run into the infamous ASIO
+      // cancellation race condition: After signalling cancellation, async_accept() may still
+      // complete successfully if already scheduled for completion. Thus, we still have to check
+      // if we have been cancelled. ASIO's coroutine support helps with that and checks
+      // automatically on the next suspension point, unless we disabled throw_if_cancelled().
+      //
+      else if (ec || cs.cancelled() != cancellation_type::none)
       {
-         std::println("accept: {}", ec.message());
+         std::println("accept: {} (cancellation {})", ec.message(), cs.cancelled());
          break;
       }
-
-      auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
-      std::println("number of active sessions: {}", sessions.size());
-      co_spawn(ex, cancellable_session(std::move(socket)),
-               bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
-      {
-         assert(server_alive);
-         sessions.erase(id);
-         std::println("session {} finished: {}, {} sessions left", id, what(ep), sessions.size());
-         std::ignore = channel.try_send(error_code{});
-      }));
    }
 
    std::println("-----------------------------------------------------------------------------");
