@@ -159,8 +159,6 @@ TEST_F(Echo, WHEN_send_hello_in_chunks_THEN_receive_echo)
 {
    test = [](tcp::socket socket) -> awaitable<void>
    {
-      auto executor = co_await this_coro::executor;
-
       const auto hello = "Hello, World!"sv;
       auto sender = [&]() -> awaitable<void>
       {

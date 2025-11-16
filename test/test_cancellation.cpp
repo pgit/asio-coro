@@ -441,6 +441,9 @@ TEST_F(Cancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_p
 //         async operation catches the cancellation errors and decides to continue anyway,
 //         that will happen later, after the parent frame has been destroyed.
 //
+//         Because of this, it is good practice to react to cancellation immediately.
+//         For async shutdown, non-terminal cancellation types should be used.
+//
 //         There is no such thing as an "async destructor".
 //
 TEST_F(Cancellation, WHEN_log_uses_promise_THEN_is_started_immediately)

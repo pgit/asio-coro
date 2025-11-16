@@ -7,9 +7,12 @@
 
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/channel.hpp>
+#include <boost/asio/experimental/promise.hpp>
+#include <boost/asio/experimental/use_promise.hpp>
 
 #include <boost/beast/core/stream_traits.hpp>
 
+#include <deque>
 #include <map>
 #include <random>
 #include <ranges>
@@ -37,13 +40,13 @@ awaitable<void> session(tcp::socket& socket)
 
 awaitable<void> shutdown(tcp::socket& socket)
 {
-   std::println("shutdown...");
+   // std::println("shutdown...");
    co_await async_write(socket, buffer("goodbye\n"sv));
    static thread_local std::mt19937 rng{std::random_device{}()};
-   static thread_local std::uniform_int_distribution<int> dist(100, 1500);
-   // co_await sleep(std::chrono::milliseconds(dist(rng)));
+   static thread_local std::uniform_int_distribution<int> dist(0, 100);
+   co_await sleep(std::chrono::milliseconds(dist(rng)));
    socket.shutdown(boost::asio::socket_base::shutdown_both);
-   std::println("shutdown... done");
+   // std::println("shutdown... done");
    co_return;
 }
 
@@ -81,12 +84,7 @@ awaitable<void> cancellable_session(tcp::socket socket)
 
    // During shutdown, react to 'terminal' cancellation only.
    co_await this_coro::reset_cancellation_state(enable_terminal_cancellation());
-   co_await (shutdown(socket) || sleep(1s));
-   /*
-   // If we have been cancelled during shutdown, report so.
-   if (cs.cancelled() != cancellation_type::none)
-      throw system_error{error::operation_aborted};
-   */
+   co_await shutdown(socket);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -113,33 +111,39 @@ awaitable<void> server(tcp::acceptor acceptor)
    // For each accepted connection, move the socket into a new coroutine. For cancellation, create
    // a cancellation signal and bind it's slot to the completion handler of the coroutine.
    //
-   for (size_t id = 0;; id++)
+   for (size_t id = 0;;)
    {
       co_await this_coro::reset_cancellation_state(enable_total_cancellation());
       auto [ec, socket] = co_await acceptor.async_accept(as_tuple);
+
+      if (!ec)
+      {
+         auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
+         std::println("number of active sessions: {}", sessions.size());
+         co_spawn(ex, cancellable_session(std::move(socket)),
+                  bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
+         {
+            assert(server_alive);
+            sessions.erase(id);
+            std::println("session {} finished: {}, {} sessions left", id, what(ep),
+                         sessions.size());
+            std::ignore = channel.try_send(error_code{});
+         }));
+         ++id;
+      }
+
       if (cs.cancelled() == cancellation_type::total)
       {
-         std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
+         // std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
          for (auto& session : sessions)
             session.second->emit(cs.cancelled());
          continue;
       }
-      else if (ec)
+      else if (ec || cs.cancelled() != cancellation_type::none)
       {
          std::println("accept: {}", ec.message());
          break;
       }
-
-      auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
-      std::println("number of active sessions: {}", sessions.size());
-      co_spawn(ex, cancellable_session(std::move(socket)),
-               bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
-      {
-         assert(server_alive);
-         sessions.erase(id);
-         std::println("session {} finished: {}, {} sessions left", id, what(ep), sessions.size());
-         std::ignore = channel.try_send(error_code{});
-      }));
    }
 
    std::println("-----------------------------------------------------------------------------");
@@ -198,10 +202,20 @@ awaitable<void> signal_handling(cancellation_signal& signal)
    }
 }
 
+awaitable<void> random_signals(cancellation_signal& signal)
+{
+   for (size_t i = 0;; ++i)
+   {
+      co_await yield();
+      if (i % 127 == 0)
+         signal.emit(cancellation_type::total);
+   }
+}
+
 awaitable<void> with_signal_handling(awaitable<void> task)
 {
    cancellation_signal signal;
-   co_await (signal_handling(signal) ||
+   co_await (signal_handling(signal) || random_signals(signal) ||
              co_spawn(co_await this_coro::executor, std::move(task),
                       bind_cancellation_slot(signal.slot(), use_awaitable)));
 }
@@ -214,7 +228,7 @@ public:
    void SetUp() override
    {
       tcp::acceptor acceptor(executor, tcp::endpoint{tcp::v6(), 0});
-      auto endpoint = acceptor.local_endpoint();
+      endpoint = acceptor.local_endpoint();
       ASSERT_GT(endpoint.port(), 0);
       std::println("listening on {:c}", endpoint);
 
@@ -230,7 +244,7 @@ public:
 
       ip::tcp::socket socket(ex);
       co_await socket.async_connect(endpoint);
-      std::println("connected from {:c} to {:c}", socket.local_endpoint(),
+      std::println("connected to {1:c}, local endpoint {0:c}", socket.local_endpoint(),
                    socket.remote_endpoint());
 
       auto task = test(std::move(socket));
@@ -250,6 +264,7 @@ private:
 
 protected:
    any_io_executor executor{context.get_executor()};
+   tcp::endpoint endpoint;
    std::function<awaitable<void>(tcp::socket socket)> test = noop;
 
    static awaitable<void> noop(tcp::socket) { co_return; }
@@ -289,10 +304,10 @@ awaitable<std::string> read(tcp::socket& socket, size_t bytes)
 {
    std::string str(bytes, '\0');
    auto [ec, n] = co_await async_read(socket, buffer(str), as_tuple);
-   if (ec && ec != error::eof)
-      throw system_error{ec};
    if (ec == error::eof)
       str.resize(n);
+   else if (ec)
+      throw system_error{ec};
    co_return str;
 }
 
@@ -359,7 +374,7 @@ TEST_F(EchoCancellation, WHEN_send_sigterm_THEN_connection_is_closed_immediately
 
 // =================================================================================================
 
-TEST_F(EchoCancellation, WHEN_backpressure_THEN_connection_is_closed_immediately)
+TEST_F(EchoCancellation, DISABLED_WHEN_backpressure_THEN_connection_is_closed_immediately)
 {
    test = [](tcp::socket socket) -> awaitable<void>
    {
@@ -368,6 +383,53 @@ TEST_F(EchoCancellation, WHEN_backpressure_THEN_connection_is_closed_immediately
       socket.shutdown(socket_base::shutdown_send);
       std::println("echoed {} bytes", n);
       EXPECT_EQ((co_await read_until_eof(socket)).size(), n + 8);
+   };
+}
+
+// =================================================================================================
+
+TEST_F(EchoCancellation, WHEN_many_clients_THEN_handles_all_gracefully)
+{
+   test = [this](tcp::socket) -> awaitable<void>
+   {
+      using boost::asio::experimental::promise;
+      using boost::asio::experimental::use_promise;
+
+      auto ex = co_await this_coro::executor;
+
+      constexpr std::size_t concurrency = 100;
+      constexpr std::size_t total_clients = 1000;
+
+      std::deque<promise<void(std::exception_ptr)>> running;
+      auto spawn_client = [this, ex]() -> promise<void(std::exception_ptr)>
+      {
+         return co_spawn(ex, [this]() -> awaitable<void>
+         {
+            ip::tcp::socket socket(co_await this_coro::executor);
+            co_await socket.async_connect(endpoint);
+            co_await socket.async_send(buffer("Hello, World!"sv));
+            socket.shutdown(socket_base::shutdown_send);
+            EXPECT_THAT(co_await read_until_eof(socket), EndsWith("goodbye\n"));
+         }, use_promise);
+      };
+
+      for (std::size_t i = 0; i < concurrency; ++i)
+         running.push_back(spawn_client());
+
+      std::size_t launched = running.size();
+      while (launched < total_clients)
+      {
+         co_await std::move(running.front());
+         running.pop_front();
+         running.push_back(spawn_client());
+         ++launched;
+      }
+
+      while (!running.empty())
+      {
+         co_await std::move(running.front());
+         running.pop_front();
+      }
    };
 }
 

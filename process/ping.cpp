@@ -64,7 +64,7 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 
 /// Execute process \p path with given \p args, logging its STDOUT.
 /**
- * https://www.boost.org/doc/libs/1_88_0/doc/html/process.html   
+ * https://www.boost.org/doc/libs/1_88_0/doc/html/process.html
  */
 awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args = {})
 {
@@ -90,6 +90,7 @@ awaitable<int> execute(std::filesystem::path path, std::vector<std::string> args
 int main()
 {
    io_context context;
+   // for (size_t i = 0; i < 100; ++i)
    co_spawn(context, execute("/usr/bin/ping", {"::1", "-c", "5", "-i", "0.1"}), detached);
    context.run();
 }
