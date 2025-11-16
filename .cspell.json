@@ -18,6 +18,7 @@
         "libasan",
         "libc",
         "libcxx",
+        "liburing",
         "lldb",
         "lldbinit",
         "noninteractive",

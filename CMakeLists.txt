@@ -49,6 +49,8 @@ link_libraries(Boost::thread Boost::atomic)
 include_directories(/usr/local/include/range-v3)
 add_compile_options(-Wno-deprecated-declarations) # needed for ranges/v3 starting with clang 19
 
+pkg_check_modules(uring REQUIRED IMPORTED_TARGET liburing)
+
 # --------------------------------------------------------------------------------------------------
 
 enable_testing(false)
