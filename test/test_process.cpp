@@ -36,7 +36,7 @@ protected:
 
 TEST_F(Process, WHEN_process_succeeds_THEN_returns_zero_exit_code)
 {
-   co_spawn(executor, [this] -> awaitable<int>
+   co_spawn(executor, [this] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       bp::process child(executor, "/usr/bin/true", {});
@@ -48,7 +48,7 @@ TEST_F(Process, WHEN_process_succeeds_THEN_returns_zero_exit_code)
 
 TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 {
-   co_spawn(executor, [this] -> awaitable<int>
+   co_spawn(executor, [this] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       bp::process child(executor, "/usr/bin/false", {});
@@ -60,11 +60,11 @@ TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 
 TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_no_such_file_or_directory)
 {
-   co_spawn(executor, [this] -> awaitable<int>
+   co_spawn(executor, [this] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       bp::process child(executor, "/path/does/not/exist", {});
-      co_return co_await child.async_wait();
+      co_return co_await child.async_wait();  // not reached
    }, token());
 
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::no_such_file_or_directory)));
@@ -74,7 +74,7 @@ TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_no_such_file_or_directory)
 
 TEST_F(Process, WHEN_stdout_is_logged_THEN_can_detect_ping_output)
 {
-   co_spawn(executor, [this] -> awaitable<int>
+   co_spawn(executor, [this] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       readable_pipe out(executor);

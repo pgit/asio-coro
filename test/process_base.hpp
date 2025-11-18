@@ -51,7 +51,7 @@ protected:
       {
          if (ep)
          {
-            // assert(!exit_code); // on error, we should have a default-constructed exit_code
+            assert(!exit_code); // on error, we should have a default-constructed exit_code
             std::println("execute: {}", what(ep));
             on_error(code(ep));
          }
