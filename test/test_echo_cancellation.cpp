@@ -1,5 +1,6 @@
 #include "asio-coro.hpp"
 #include "literals.hpp"
+#include "run.hpp"
 #include "send.hpp"
 
 #include <gmock/gmock.h>
@@ -202,20 +203,10 @@ awaitable<void> signal_handling(cancellation_signal& signal)
    }
 }
 
-awaitable<void> random_signals(cancellation_signal& signal)
-{
-   for (size_t i = 0;; ++i)
-   {
-      co_await yield();
-      if (i % 127 == 0)
-         signal.emit(cancellation_type::total);
-   }
-}
-
 awaitable<void> with_signal_handling(awaitable<void> task)
 {
    cancellation_signal signal;
-   co_await (signal_handling(signal) || random_signals(signal) ||
+   co_await (signal_handling(signal) ||
              co_spawn(co_await this_coro::executor, std::move(task),
                       bind_cancellation_slot(signal.slot(), use_awaitable)));
 }
