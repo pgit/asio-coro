@@ -15,6 +15,7 @@
         "gtest",
         "HISTFILE",
         "iputils",
+        "jsoncons",
         "libasan",
         "libc",
         "libcxx",

@@ -81,4 +81,9 @@ RUN chown $USERNAME:$USERNAME /home/${USERNAME}/.tmux.conf /home/${USERNAME}/.ba
 
 # --------------------------------------------------------------------------------------------------
 
+RUN cd /opt && \
+    wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v1.4.3.tar.gz && \
+    tar xzvf v1.4.3.tar.gz && \
+    rm v1.4.3.tar.gz
+
 SHELL ["/bin/bash", "-c"]

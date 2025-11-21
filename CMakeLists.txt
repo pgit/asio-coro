@@ -40,7 +40,7 @@ find_package(OpenSSL COMPONENTS)
 find_package(Threads)
 
 link_libraries(Threads::Threads)
-link_libraries(Boost::thread Boost::atomic)
+link_libraries(Boost::thread Boost::atomic Boost::program_options)
 
 #
 # range-v3 -- FIXME: needed only for views:chunked(),
@@ -64,6 +64,7 @@ link_libraries(asio_coro)
 
 add_subdirectory(bin)
 add_subdirectory(echo)
+add_subdirectory(http)
 add_subdirectory(net)
 add_subdirectory(process)
 add_subdirectory(test)
