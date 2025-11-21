@@ -9,5 +9,6 @@
  * with logging a separator line between each \c run_one() step and some timing information.
  */
 size_t run(boost::asio::io_context& context);
+size_t runDebug(boost::asio::io_context& context);
 
 // =================================================================================================

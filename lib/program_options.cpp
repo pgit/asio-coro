@@ -9,19 +9,18 @@
 #include <thread>
 #include <vector>
 
-int program_options::run(int argc, char* argv[])
+int run(boost::asio::io_context& context, int argc, char* argv[])
 {
    namespace po = boost::program_options;
 
    bool debug = false;
    std::size_t threads = 0;
 
-   po::options_description desc("Allowed options");
-   desc.add_options()
-      ("help,h", "produce help message")
-      ("debug,d", po::bool_switch(&debug)->default_value(false), "use debug run() for io_context")
-      ("threads,t", po::value<std::size_t>(&threads)->default_value(0), "number of extra threads to run the io_context")
-      ;
+   po::options_description desc("Usage");
+   desc.add_options()("help,h", "produce help message")(
+      "debug,d", po::bool_switch(&debug)->default_value(false), "use debug run() for io_context")(
+      "threads,t", po::value<std::size_t>(&threads)->default_value(0),
+      "number of extra threads to run the io_context");
 
    po::variables_map vm;
    try
@@ -31,7 +30,7 @@ int program_options::run(int argc, char* argv[])
    }
    catch (const po::error& ex)
    {
-      std::cerr << "Command line error: " << ex.what() << std::endl;
+      std::println(std::cerr, "ERROR: {}", ex.what());
       return 1;
    }
 
@@ -41,23 +40,31 @@ int program_options::run(int argc, char* argv[])
       return 0;
    }
 
-   boost::asio::io_context context;
-
-   if (debug)
+   if (debug && threads > 0)
    {
-      // Use the debug run variant which logs run_one etc.
-      ::run(context);
-      return 0;
+      std::println(std::cerr, "ERROR: debug output works single-threaded only");
+      return 1;
    }
 
-   // Spawn extra threads to run the context, like in client.cpp
-   std::vector<std::jthread> workers;
-   workers.reserve(threads);
-   for (std::size_t i = 0; i < threads; ++i)
-      workers.emplace_back([&context]() { context.run(); });
+   //
+   // finally, run IO context
+   //
+   if (debug)
+   {
+      ::runDebug(context);
+   }
+   else
+   {
+      std::vector<std::jthread> workers;
+      workers.reserve(threads);
+      for (std::size_t i = 0; i < threads; ++i)
+         workers.emplace_back([&context]() { context.run(); });
 
-   // Run on the calling thread
-   context.run();
+      context.run();
+
+      for (auto& thread : workers)
+         thread.join();
+   }
 
    return 0;
 }

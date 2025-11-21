@@ -1,8 +1,7 @@
 #pragma once
 
+#include <boost/asio/io_context.hpp>
+
 #include <cstddef>
 
-namespace program_options
-{
-int run(int argc, char* argv[]);
-}
+int run(boost::asio::io_context& context, int argc, char* argv[]);

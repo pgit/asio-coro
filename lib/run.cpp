@@ -7,6 +7,12 @@ size_t run(boost::asio::io_context& context)
 #if defined(NDEBUG)
    return context.run();
 #else
+   return runDebug(context);
+#endif
+}
+
+size_t runDebug(boost::asio::io_context& context)
+{
    size_t i = 0;
    using namespace std::chrono;
    for (auto t0 = steady_clock::now(); context.run_one(); ++i)
@@ -22,5 +28,4 @@ size_t run(boost::asio::io_context& context)
       t0 = t1;
    }
    return i;
-#endif
 }
