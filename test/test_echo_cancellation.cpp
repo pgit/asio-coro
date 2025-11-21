@@ -98,12 +98,22 @@ awaitable<void> server(tcp::acceptor acceptor)
    co_await this_coro::throw_if_cancelled(false);
 
    //
-   // The fact that cancellation_signal is not copyable is not surprising, but it is also not
-   // movable. This makes it a little difficult to handle, and we have to use a unique ptr.
+   // The 'server_alive' flag and the assertion checking it in the completion handle of the sessions
+   // doesn't serve any functional purpose except making sure we have structured concurrency.
    //
    bool server_alive = true;
    auto scope_exit = make_scope_exit([&]() { server_alive = false; });
+
+   //
+   // The fact that cancellation_signal is not copyable is not surprising, but it is also not
+   // movable. This makes it a little difficult to handle, and we have to use a unique ptr.
+   //
    std::map<size_t, std::unique_ptr<cancellation_signal>> sessions;
+
+   //
+   // We use a channel to wait for sessions to complete. This similar to how you would do with
+   // a std::condition_variable.
+   //
    experimental::channel<void(error_code)> channel(ex);
 
    //
@@ -159,7 +169,7 @@ awaitable<void> server(tcp::acceptor acceptor)
    std::println("-----------------------------------------------------------------------------");
 
    //
-   // Wait until all coroutines have finished.
+   // Wait until all sessions have finished.
    //
    // The cannel is notified every time after a session is removed.
    //

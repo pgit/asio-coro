@@ -24,13 +24,13 @@ awaitable<void> session(tcp::socket& socket)
 
 awaitable<void> shutdown(tcp::socket& socket)
 {
-   std::println("shutdown...");
+   // std::println("shutdown...");
    // co_await async_write(socket, buffer("goodbye\n"sv));
    static thread_local std::mt19937 rng{std::random_device{}()};
    static thread_local std::uniform_int_distribution<int> dist(100, 1500);
-   co_await sleep(std::chrono::milliseconds(dist(rng)));
+   // co_await sleep(std::chrono::milliseconds(dist(rng)));
    socket.shutdown(boost::asio::socket_base::shutdown_both);
-   std::println("shutdown... done");
+   // std::println("shutdown... done");
    co_return;
 }
 
@@ -49,7 +49,7 @@ awaitable<void> cancellable_session(tcp::socket socket)
 
    // Finally, run session. Catch errors and re-throw anything that is not about cancellation.
    auto [ep] = co_await co_spawn(ex, session(socket), as_tuple);
-   if (ep && cs.cancelled() == none)
+   if (ep && code(ep) != error::eof && cs.cancelled() == none)
       throw system_error{code(ep)};
 
    // React to terminal cancellation immediately.
@@ -59,10 +59,6 @@ awaitable<void> cancellable_session(tcp::socket socket)
    // During shutdown, react to 'terminal' cancellation only.
    co_await this_coro::reset_cancellation_state(enable_terminal_cancellation());
    co_await shutdown(socket);
-
-   // If we have been cancelled during shutdown, report so.
-   if (cs.cancelled() != cancellation_type::none)
-      throw system_error{error::operation_aborted};
 }
 
 awaitable<void> server(tcp::acceptor acceptor)
