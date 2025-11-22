@@ -12,6 +12,11 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+RUN cd /opt && \
+    wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v1.4.3.tar.gz && \
+    tar xzvf v1.4.3.tar.gz && \
+    rm v1.4.3.tar.gz
+
 # --------------------------------------------------------------------------------------------------
 
 #
@@ -80,10 +85,5 @@ COPY .bash_aliases /home/${USERNAME}/.bash_aliases
 RUN chown $USERNAME:$USERNAME /home/${USERNAME}/.tmux.conf /home/${USERNAME}/.bash_aliases
 
 # --------------------------------------------------------------------------------------------------
-
-RUN cd /opt && \
-    wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v1.4.3.tar.gz && \
-    tar xzvf v1.4.3.tar.gz && \
-    rm v1.4.3.tar.gz
 
 SHELL ["/bin/bash", "-c"]
