@@ -1,3 +1,15 @@
+/**
+ * https://github.com/boostorg/asio/issues/458
+ *
+ * Issue: non-terminal cancellation of parallel_group does not cancel remaining operations
+ *
+ * If only one of two operations in parallel group react to a cancellation signal, the other one
+ * is not cancelled -- at all. If the reacting operation completes and, because of that, the group
+ * completes, the remaining operation is not cancelled again.
+ *
+ * The only workaround for now it to ensure that all operations in a parallel group react to the
+ * same cancellation signals.
+ */
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
@@ -17,13 +29,13 @@ using enum cancellation_type;
 
 awaitable<void> task(cancellation_type filter)
 {
-   co_await this_coro::reset_cancellation_state(
-      [filter](cancellation_type type)
-      {
-         auto filtered = type & filter;
-         std::print(std::cout, "FILTER({}): {} -> {}\n", std::to_underlying(filter), std::to_underlying(type), std::to_underlying(filtered));
-         return filtered;
-      });
+   co_await this_coro::reset_cancellation_state([filter](cancellation_type type)
+   {
+      auto filtered = type & filter;
+      std::print(std::cout, "FILTER({}): {} -> {}\n", std::to_underlying(filter),
+                 std::to_underlying(type), std::to_underlying(filtered));
+      return filtered;
+   });
 
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(2s);
@@ -31,6 +43,8 @@ awaitable<void> task(cancellation_type filter)
    std::print("waiting...\n");
    auto [ec] = co_await timer.async_wait(as_tuple);
    std::print("waiting... {}\n", ec.what());
+   if (ec)
+      throw system_error(ec);
 }
 
 awaitable<void> group()

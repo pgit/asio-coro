@@ -1,7 +1,10 @@
 /**
- * Stream HTTP echo server.
+ * HTTP/1.1 server echoing the body of incoming requests.
+ *
+ * The echoing is done without reading the entire body into memory, in a streaming fashion.
  */
 #include "asio-coro.hpp"
+#include "literals.hpp"
 #include "program_options.hpp"
 
 #include <boost/asio.hpp>
@@ -53,7 +56,7 @@ awaitable<void> session(tcp::socket socket)
 
       while (!sr.is_done())
       {
-         std::array<char, 64 * 1024> data;
+         std::array<char, 64_k> data;
          parser.get().body().data = data.data();
          parser.get().body().size = sizeof(data);
 

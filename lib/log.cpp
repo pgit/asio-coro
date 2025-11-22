@@ -11,6 +11,9 @@ using namespace boost::asio;
  * The \p pipe is passed as a reference and must be kept alive while running this coroutine!
  * On error while reading from the pipe, any lines in the remaining buffer are printed,
  * including the trailing incomplete line, if any.
+ *
+ * This coroutine supports 'terminal' cancellation only. Any remaining buffered data is printed
+ * before returning. If logging was interrupted within a line, that partial line is printed as well.
  */
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {

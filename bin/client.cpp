@@ -1,7 +1,8 @@
 #include "asio-coro.hpp"
+#include "literals.hpp"
 
 #include <boost/asio/error.hpp>
-#include <boost/program_options.hpp> // Add this include
+#include <boost/program_options.hpp>
 
 #include <iostream>
 #include <ranges>
@@ -12,7 +13,7 @@ using std::chrono::steady_clock;
 
 struct ClientConfig
 {
-   size_t buffer_size = 64 * 1024;
+   size_t buffer_size = 64_k;
    std::optional<size_t> size;
    std::optional<steady_clock::duration> time = 1s;
 };
@@ -25,7 +26,7 @@ public:
 private:
    /*
     * Write as much data to the socket as possible, until either the configured limit has been
-    * reached or this coroutine is cancelled. We don't care about the data that is written, so
+    * reached or this coroutine is cancelled. We don't care about what exactly is written, so
     * that is just an uninitialized vector.
     */
    awaitable<size_t> write_loop(tcp::socket& socket)
@@ -34,7 +35,8 @@ private:
       size_t size = config_.size ? *config_.size : std::numeric_limits<size_t>::max();
       try
       {
-         std::vector<char> data(config_.buffer_size);
+         auto data = std::views::iota(uint8_t{0}) | std::views::take(config_.buffer_size) | //
+                     std::ranges::to<std::vector>();  // 0..255,0..255,...
          while (total < size)
          {
             size_t n = std::min(size - n, data.size());

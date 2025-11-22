@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
    }
 
    io_context context;
-   co_spawn(context, test_happy_eyeballs(argv[1], argv[2]), log_exception());
+   co_spawn(context, test_happy_eyeballs(argv[1], argv[2]), cancel_after(1s, log_exception()));
    context.run();
 }
 
