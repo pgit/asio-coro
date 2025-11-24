@@ -57,11 +57,12 @@ awaitable<void> server(tcp::acceptor acceptor)
       }
 
       auto [it, inserted] = sockets.emplace(id, std::move(socket));
-      std::println("number of active sessions: {}", sockets.size());
+      std::println("session {} created, number of active sessions: {}", id, sockets.size());
       co_spawn(executor, session(it->second), [&sockets, id](const std::exception_ptr& ep)
       {
          sockets.erase(id);
-         std::println("session {} finished: {}, {} sessions left", id, what(ep), sockets.size());
+         std::println("session {} finished with {}, {} sessions left", //
+                      id, what(ep), sockets.size());
       });
    }
 

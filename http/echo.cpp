@@ -61,9 +61,7 @@ awaitable<void> session(tcp::socket socket)
          parser.get().body().size = sizeof(data);
 
          auto [ec, n] = co_await http::async_read(socket, buffer, parser, as_tuple);
-         if (ec == http::error::need_buffer)
-            ;
-         else if (ec)
+         if (ec && ec != http::error::need_buffer)
             throw system_error(ec);
 
          res.body().data = data.data();
@@ -75,9 +73,7 @@ awaitable<void> session(tcp::socket socket)
             continue;
 
          std::tie(ec, n) = co_await http::async_write(socket, sr, as_tuple);
-         if (ec == http::error::need_buffer)
-            ;
-         else if (ec)
+         if (ec && ec != http::error::need_buffer)
             throw system_error(ec);
       }
    }

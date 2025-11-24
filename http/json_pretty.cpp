@@ -1,5 +1,6 @@
 /**
  * HTTP/1.1 server accepting JSON documents and returning them pretty-printed.
+ * On invalid input, a detailed error message is put into the response instead.
  *
  * Shows how to use Boost.Beast for asynchronously reading/writing a HTTP request/response pair.
  */
@@ -21,10 +22,8 @@ awaitable<void> session(tcp::socket socket)
    flat_buffer buffer;
    for (;;)
    {
-      http::request_parser<http::string_body> parser;
-      parser.body_limit(boost::none);
-      co_await http::async_read(socket, buffer, parser);
-      auto request = parser.release();
+      http::request<http::string_body> request;
+      co_await http::async_read(socket, buffer, request);
 
       http::response<http::string_body> response;
       try
@@ -49,7 +48,7 @@ awaitable<void> session(tcp::socket socket)
 awaitable<void> server(tcp::acceptor a)
 {
    for (;;)
-      co_spawn(a.get_executor(), session(co_await a.async_accept()), log_exception());
+      co_spawn(a.get_executor(), session(co_await a.async_accept()), detached);
 }
 
 int main(int argc, char* argv[])

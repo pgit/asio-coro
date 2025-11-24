@@ -9,6 +9,9 @@
  *
  * The only workaround for now it to ensure that all operations in a parallel group react to the
  * same cancellation signals.
+ *
+ * This issue is still open and present in Boost.ASIO 1.89 as of 2024-11-22. It is not fully clear
+ * if this is really a bug or just complex behaviour when mixing different cancellation types.
  */
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>
@@ -49,16 +52,16 @@ awaitable<void> task(cancellation_type filter)
 
 awaitable<void> group()
 {
+   auto ex = co_await this_coro::executor;
    co_await this_coro::reset_cancellation_state(enable_total_cancellation());
-   auto executor = co_await this_coro::executor;
-   auto group = make_parallel_group(co_spawn(executor, task(terminal | partial | total)),
-                                    co_spawn(executor, task(terminal)));
+   auto group = make_parallel_group(co_spawn(ex, task(terminal | partial | total)),
+                                    co_spawn(ex, task(terminal)));
    co_await std::move(group).async_wait(wait_for_one(), deferred);
 }
 
 int main()
 {
    boost::asio::io_context context;
-   co_spawn(context, group(), cancel_after(1ms, cancellation_type::total, detached));
+   co_spawn(context, group(), cancel_after(1ms, total, detached));
    context.run();
 }

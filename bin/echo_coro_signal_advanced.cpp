@@ -1,4 +1,5 @@
 #include "asio-coro.hpp"
+#include "program_options.hpp"
 
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/channel.hpp>
@@ -72,8 +73,6 @@ awaitable<void> server(tcp::acceptor acceptor)
    // The fact that cancellation_signal is not copyable is not surprising, but it is also not
    // movable. This makes it a little difficult to handle, and we have to use a unique ptr.
    //
-   bool server_alive = true;
-   auto scope_exit = make_scope_exit([&]() { server_alive = false; });
    std::map<size_t, std::unique_ptr<cancellation_signal>> sessions;
    experimental::channel<void(error_code)> channel(ex);
 
@@ -94,17 +93,19 @@ awaitable<void> server(tcp::acceptor acceptor)
       //
       if (!ec)
       {
-         auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
-         std::println("number of active sessions: {}", sessions.size());
+         auto signal = std::make_unique<cancellation_signal>();
+
          co_spawn(ex, cancellable_session(std::move(socket)),
-                  bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
+                  bind_cancellation_slot(signal->slot(), [&, id](const std::exception_ptr& ep)
          {
-            assert(server_alive);
             sessions.erase(id);
-            std::println("session {} finished: {}, {} sessions left", id, what(ep),
-                         sessions.size());
+            std::println("session {} finished with {}, {} sessions left", //
+                         id, what(ep), sessions.size());
             std::ignore = channel.try_send(error_code{});
          }));
+
+         auto [it, _] = sessions.emplace(id, std::move(signal));
+         std::println("session {} created, number of active sessions: {}", id, sessions.size());
          ++id;
       }
 
@@ -199,9 +200,9 @@ awaitable<void> with_signal_handling(awaitable<void> task)
                       bind_cancellation_slot(signal.slot(), use_awaitable)));
 }
 
-int main()
+int main(int argc, char** argv)
 {
    io_context context;
    co_spawn(context, with_signal_handling(server({context, {tcp::v6(), 55555}})), detached);
-   context.run();
+   return run(context, argc, argv);
 }

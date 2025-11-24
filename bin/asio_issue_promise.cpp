@@ -67,7 +67,7 @@ awaitable<void> subtask(Resource& resource)
    // UNLESS two tasks() are started in a parallel group.
    //
    assert(resource.alive); // might compile and run, but is undefined behaviour
-#else
+#else // equivalent
    try
    {
       co_await timer.async_wait(bind_cancellation_slot(signal.slot()));
@@ -87,8 +87,6 @@ awaitable<void> task()
    
    // only by waiting for the coroutine again, we give it a chance to complete gracefully
    co_await std::move(promise);
-
-   // in the end, something like an "async scope" is missing here for proper structured concurrency
 }
 
 int main()
