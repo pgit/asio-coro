@@ -1,5 +1,6 @@
 // For format details, see https://aka.ms/vscode-remote/devcontainer.json or this file's README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.134.0/containers/cpp
+// spellchecker:disable
 {
 	"name": "C++",
 	"build": {
@@ -30,7 +31,7 @@
 			},
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
-				"llvm-vs-code-extensions.vscode-clangd",				
+				"llvm-vs-code-extensions.vscode-clangd",
 				"matepek.vscode-catch2-test-adapter",
 				"ms-azuretools.vscode-docker",
 				"ms-vscode.cmake-tools",
@@ -39,9 +40,9 @@
 				"streetsidesoftware.code-spell-checker",
 				"usernamehw.errorlens",
 				"vadimcn.vscode-lldb",
-				"xaver.clang-format"
+				"xaver.clang-format",
+				"redhat.vscode-yaml"
 			]
-			
 		}
 	},
 
