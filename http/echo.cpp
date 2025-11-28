@@ -3,7 +3,6 @@
  *
  * The echoing is done without reading the entire body into memory, in a streaming fashion.
  */
-#include "asio-coro.hpp"
 #include "literals.hpp"
 #include "program_options.hpp"
 
@@ -58,14 +57,15 @@ awaitable<void> session(tcp::socket socket)
       {
          std::array<char, 64_k> data;
          parser.get().body().data = data.data();
-         parser.get().body().size = sizeof(data);
+         parser.get().body().size = data.size();
 
          auto [ec, n] = co_await http::async_read(socket, buffer, parser, as_tuple);
          if (ec && ec != http::error::need_buffer)
             throw system_error(ec);
 
+         assert(parser.get().body().size <= data.size());
          res.body().data = data.data();
-         res.body().size = sizeof(data) - parser.get().body().size;
+         res.body().size = data.size() - parser.get().body().size; // unused bytes after reading
          res.body().more = !parser.is_done();
 
          // nothing read, but parser wants to continue? happens after reading the chunk header

@@ -26,10 +26,10 @@ awaitable<void> session(tcp::socket& socket)
 awaitable<void> shutdown(tcp::socket& socket)
 {
    // std::println("shutdown...");
-   // co_await async_write(socket, buffer("goodbye\n"sv));
+   co_await async_write(socket, buffer("goodbye\n"sv));
    static thread_local std::mt19937 rng{std::random_device{}()};
    static thread_local std::uniform_int_distribution<int> dist(100, 1500);
-   // co_await sleep(std::chrono::milliseconds(dist(rng)));
+   co_await sleep(std::chrono::milliseconds(dist(rng)));
    socket.shutdown(boost::asio::socket_base::shutdown_both);
    // std::println("shutdown... done");
    co_return;

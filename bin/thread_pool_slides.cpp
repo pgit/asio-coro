@@ -16,7 +16,7 @@ int main()
    for (size_t i = 0; i < 20; ++i)
       co_spawn(context, [&] -> awaitable<void>
       {
-         co_await post(bind_executor(pool));
+         // co_await post(bind_executor(pool));
          std::this_thread::sleep_for(100ms);
 
          count++;

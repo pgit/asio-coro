@@ -18,8 +18,8 @@ int run(boost::asio::io_context& context, int argc, char* argv[])
 
    po::options_description desc("Usage");
    desc.add_options()("help,h", "produce help message")(
-      "debug,d", po::bool_switch(&debug)->default_value(false), "use debug run() for io_context")(
-      "threads,t", po::value<std::size_t>(&threads)->default_value(0),
+      "debug,d", po::bool_switch(&debug)->default_value(debug), "use debug run() for io_context")(
+      "threads,t", po::value<std::size_t>(&threads)->default_value(threads),
       "number of extra threads to run the io_context");
 
    po::variables_map vm;
