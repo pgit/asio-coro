@@ -15,7 +15,7 @@ struct ClientConfig
 {
    size_t buffer_size = 64_k;
    std::optional<size_t> size;
-   std::optional<steady_clock::duration> time = 1s;
+   std::optional<steady_clock::duration> duration = 1s;
 };
 
 class Client
@@ -36,7 +36,7 @@ private:
       try
       {
          auto data = std::views::iota(uint8_t{0}) | std::views::take(config_.buffer_size) | //
-                     std::ranges::to<std::vector>();  // 0..255,0..255,...
+                     std::ranges::to<std::vector>(); // 0..255,0..255,...
          while (total < size)
          {
             size_t n = std::min(size - n, data.size());
@@ -63,8 +63,8 @@ private:
       try
       {
          auto task = write_loop(socket);
-         if (config_.time)
-            co_return co_await co_spawn(executor, std::move(task), cancel_after(*config_.time));
+         if (config_.duration)
+            co_return co_await co_spawn(executor, std::move(task), cancel_after(*config_.duration));
          else
             co_return co_await std::move(task); // co_spawn(executor, std::move(task));
       }
@@ -135,7 +135,7 @@ struct Config
    uint16_t port = 55555;
    size_t connections = 1;
    size_t extraThreads = 0;
-   std::chrono::milliseconds duration = 3s;
+   size_t duration = 1;
 };
 
 int main(int argc, char* argv[])
@@ -147,14 +147,19 @@ int main(int argc, char* argv[])
    // Define and parse command line options
    po::options_description desc("Allowed options");
    desc.add_options()("help,h", "produce help message");
-   desc.add_options()("host", po::value<std::string>(&config.host)->default_value("localhost"),
+   desc.add_options()("host", po::value<std::string>(&config.host)->default_value(config.host),
                       "host to connect to");
-   desc.add_options()("port,p", po::value<uint16_t>(&config.port)->default_value(55555),
+   desc.add_options()("port,p", po::value<uint16_t>(&config.port)->default_value(config.port),
                       "port number");
-   desc.add_options()("connections,c", po::value<size_t>(&config.connections)->default_value(1),
+   desc.add_options()("connections,c",
+                      po::value<size_t>(&config.connections)->default_value(config.connections),
                       "number of connections");
-   desc.add_options()("extraThreads,t", po::value<size_t>(&config.extraThreads)->default_value(0),
+   desc.add_options()("extraThreads,t",
+                      po::value<size_t>(&config.extraThreads)->default_value(config.extraThreads),
                       "number of extra threads");
+   desc.add_options()("duration,d",
+                      po::value<size_t>(&config.duration)->default_value(config.duration),
+                      "number of seconds to run the test before closing the connection");
 
    po::variables_map vm;
    try
@@ -183,7 +188,7 @@ int main(int argc, char* argv[])
    {
       if (config.extraThreads)
          executor = make_strand(executor);
-      clients.emplace_back(ClientConfig{});
+      clients.emplace_back(ClientConfig{.duration = 1s * config.duration});
       return co_spawn(executor, clients.back().run(config.host, config.port), as_tuple(use_future));
    }) | std::ranges::to<std::vector>();
 
