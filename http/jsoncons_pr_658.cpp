@@ -16,10 +16,7 @@ public:
    {
    }
 
-   ~checked_resource()
-   {
-      assert(map.empty());
-   }
+   ~checked_resource() { assert(map.empty()); }
 
 protected:
    void* do_allocate(std::size_t bytes, std::size_t alignment) override
@@ -38,7 +35,7 @@ protected:
          message = "\x1b[1;31mNOT FOUND\x1b[0m";
       else
       {
-         if (it->second != bytes)
+         if (it->second != bytes) // shouldn't happen any more after PR 658
             message = std::format("\x1b[31msize mismatch: {} vs {}\x1b[0m", it->second, bytes);
          else
             message = "OK";

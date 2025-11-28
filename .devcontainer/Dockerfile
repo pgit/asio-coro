@@ -12,11 +12,16 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cd /opt && \
-    wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v1.4.3.tar.gz && \
-    tar xzvf v1.4.3.tar.gz && \
-    rm v1.4.3.tar.gz
+ARG VERSION=1.4.3
+RUN wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v${VERSION}.tar.gz && \
+    tar xzvf v${VERSION}.tar.gz && \
+    mv jsoncons-${VERSION}/include/* /usr/local/include && \
+    rm jsoncons-${VERSION} v${VERSION}.tar.gz -rf
 
+RUN git clone https://github.com/Tencent/rapidjson.git && \ 
+    mv rapidjson/include/* /usr/local/include && \
+    rm rapidjson -rf
+    
 # --------------------------------------------------------------------------------------------------
 
 #
