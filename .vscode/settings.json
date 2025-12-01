@@ -13,7 +13,7 @@
          "cwd": "${workspaceDirectory}"
       }
    ],
-   "testMate.cpp.debug.configTemplate":  {
+   "testMate.cpp.debug.configTemplate": {
       "type": "cppvsdbg",
       // "linux": { "type": "cppdbg", "MIMode": "gdb" },
       "linux": { "type": "lldb" },
@@ -25,5 +25,14 @@
       "sourceFileMap": "${sourceFileMapObj}",
    },
    "testMate.cpp.test.parallelExecutionLimit": 8,
-   "testMate.cpp.test.parallelExecutionOfExecutableLimit": 8
+   "testMate.cpp.test.parallelExecutionOfExecutableLimit": 8,
+   "json.schemas": [
+      {
+         "fileMatch": [
+            "/test/data/*.jsonc", "/test/data/*.json"
+         ],
+         "url": "/test/data/schema.json"
+      }
+   ],
+   "json.validate.enable": true,
 }

@@ -6,7 +6,7 @@
  *
  * Uses 'rapidjson' for JSON parsing and pretty printing. The parser is used in "in situ",
  * which means that the strings in the parsed DOM are referencing the source buffer directly.
- * The buffer is modified by doing so.
+ * The buffer is modified by that.
  */
 #include "program_options.hpp"
 

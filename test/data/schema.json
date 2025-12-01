@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "People Array",
+  "description": "Array of person records (name, language, id, bio, version).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Full name"
+      },
+      "language": {
+        "type": "string",
+        "description": "Language name"
+      },
+      "id": {
+        "type": "string",
+        "pattern": "^[A-Z0-9]{16}$",
+        "description": "Uppercase alphanumeric identifier, 16 chars"
+      },
+      "bio": {
+        "type": "string",
+        "description": "Short biography text"
+      },
+      "version": {
+        "type": "number",
+        "description": "Numeric version value"
+      }
+    },
+    "required": ["name", "language", "id", "bio", "version"],
+    "additionalProperties": false
+  }
+}
