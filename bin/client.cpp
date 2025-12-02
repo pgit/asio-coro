@@ -11,6 +11,8 @@
 using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 
+namespace po = boost::program_options;
+
 struct ClientConfig
 {
    size_t buffer_size = 64_k;
@@ -52,6 +54,7 @@ private:
          else
             throw;
       }
+
       error_code ec;
       ec = socket.shutdown(boost::asio::socket_base::shutdown_send, ec);
       co_return total;
@@ -60,19 +63,10 @@ private:
    awaitable<size_t> write(tcp::socket& socket)
    {
       auto executor = co_await this_coro::executor;
-      try
-      {
-         auto task = write_loop(socket);
-         if (config_.duration)
-            co_return co_await co_spawn(executor, std::move(task), cancel_after(*config_.duration));
-         else
-            co_return co_await std::move(task); // co_spawn(executor, std::move(task));
-      }
-      catch (system_error& ex)
-      {
-         // std::println("write: {}", ex.code().message());
-         throw;
-      }
+      if (config_.duration)
+         co_return co_await co_spawn(executor, write_loop(socket), cancel_after(*config_.duration));
+      else
+         co_return co_await write_loop(socket);
    }
 
    awaitable<size_t> read(tcp::socket& socket)
@@ -90,7 +84,7 @@ private:
             ; // std::println("read: {} after reading {} bytes", ex.code().message(), Bytes(total));
          else
          {
-            std::println("read: {}", ex.code().message());
+            std::println("read: {} after reading {} bytes", ex.code().message(), Bytes(total));
             throw;
          }
       }
@@ -123,7 +117,8 @@ public:
       auto t0 = steady_clock::now();
       auto [nwrite, nread] = co_await (write(socket) && read(socket));
       auto dt = floor<milliseconds>(steady_clock::now() - t0);
-      std::println("wrote {} and read {} in {}", Bytes(nwrite), Bytes(nread), dt);
+      std::println("wrote {} and read {} (\u0394 {}) in {}", //
+                   Bytes(nwrite), Bytes(nread), ssize_t(nread) - ssize_t(nwrite), dt);
 
       co_return nread;
    }
@@ -140,11 +135,11 @@ struct Config
 
 int main(int argc, char* argv[])
 {
-   namespace po = boost::program_options;
-
    Config config;
 
-   // Define and parse command line options
+   //
+   // Define and parse command line options.
+   //
    po::options_description desc("Allowed options");
    desc.add_options()("help,h", "produce help message");
    desc.add_options()("host", po::value<std::string>(&config.host)->default_value(config.host),
@@ -172,12 +167,16 @@ int main(int argc, char* argv[])
       std::cerr << "Command line error: " << ex.what() << std::endl;
       return 1;
    }
+
    if (vm.count("help"))
    {
       desc.print(std::cout);
       return 1;
    }
 
+   //
+   // Create IO context with the configured number of concurrent connections.
+   //
    io_context context;
    any_io_executor executor = context.get_executor();
 
@@ -194,6 +193,7 @@ int main(int argc, char* argv[])
 
    //
    // Finally, run the IO context until there is no pending operation left.
+   // If configured, start a number of extra threads that also run the context.
    //
    auto t0 = steady_clock::now();
    {
