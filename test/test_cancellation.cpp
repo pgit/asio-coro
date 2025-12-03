@@ -196,6 +196,17 @@ TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none
 // Test to verify that the cancellation handler of log() actually prints the remaining buffer that
 // is not yet terminated by a newline.
 //
+// PLEASE NOTE: This testcase actually suffers from the ASIO cancellation race:
+//              https://www.youtube.com/watch?v=hHk5OXlKVFg&t=484s
+//
+// The request for cancellation (out.cancel()) may be ignored by the the readable pipe iff there is
+// a pending asynchronous operation that is already scheduled for completion! That operation will
+// still complete successfully and the request for cancellation is ignored.
+//
+// The only reason this testcase runs stable is that with the timeout of 150ms, we aimed right
+// between two "pings" so it is very unlikely that there is something to read from the pipe at
+// time of cancellation.
+//
 TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printed)
 {
    test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
@@ -217,6 +228,34 @@ TEST_F(Cancellation, WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printe
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
    co_spawn(executor, execute("/usr/bin/bash", {"-c", "echo -ne 'First\nNo newline'; sleep 1"}),
             token());
+}
+
+// -------------------------------------------------------------------------------------------------
+
+//
+// Only if we actually close() the pipe, cancellation is reliable. If an asynchronous operation is
+// already scheduled for completion when closing the pipe, that operation still completes
+// successfully. But on the next attempt to read something we get 'bad_file_descriptor'.
+//
+TEST_F(Cancellation, WHEN_io_object_is_closed_THEN_log_function_is_cancelled_reliably)
+{
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   {
+      steady_timer timer(executor);
+      timer.expires_after(15ms);
+      timer.async_wait([&](error_code ec)
+      {
+         if (!ec)
+            out.close();
+      });
+
+      co_await log_stdout(out);
+      ADD_FAILURE(); // will not be executed on timeout
+      co_return 0;
+   };
+
+   EXPECT_CALL(*this, on_error(_)); // can be either operation_canceled or bad_file_descriptor
+   co_spawn(executor, execute("/usr/bin/bash", {"-c", "while date; do true; done"}), token());
 }
 
 // -------------------------------------------------------------------------------------------------
