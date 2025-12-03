@@ -242,7 +242,7 @@ TEST_F(Cancellation, WHEN_io_object_is_closed_THEN_log_function_is_cancelled_rel
    test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       steady_timer timer(executor);
-      timer.expires_after(15ms);
+      timer.expires_after(150ms);
       timer.async_wait([&](error_code ec)
       {
          if (!ec)
