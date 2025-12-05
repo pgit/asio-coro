@@ -10,7 +10,6 @@
 #include <boost/beast.hpp>
 
 #include <jsoncons/json.hpp>
-#include <jsoncons_ext/jsonpath/jsonpath.hpp>
 
 using namespace boost::asio;
 using namespace boost::beast;
@@ -31,8 +30,6 @@ awaitable<void> session(tcp::socket socket)
          response.result(http::status::ok);
          response.set(http::field::content_type, "application/json");
          auto j = json::parse(request.body());
-         if (auto it = request.find("q"); it != request.end())
-            j = jsonpath::json_query(j, it->value());
          encode_json_pretty(j, response.body());
       }
       catch (json_exception& ex)

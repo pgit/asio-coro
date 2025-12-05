@@ -9,18 +9,28 @@
 #include <thread>
 #include <vector>
 
+size_t get_terminal_width(size_t fallback = 80)
+{
+   struct winsize ws;
+   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
+      return ws.ws_col;
+
+   return fallback;
+}
+
 int run(boost::asio::io_context& context, int argc, char* argv[])
 {
    namespace po = boost::program_options;
-
    bool debug = false;
    std::size_t threads = 0;
 
-   po::options_description desc("Usage");
-   desc.add_options()("help,h", "produce help message")(
-      "debug,d", po::bool_switch(&debug)->default_value(debug), "use debug run() for io_context")(
-      "threads,t", po::value<std::size_t>(&threads)->default_value(threads),
-      "number of extra threads to run the io_context");
+   po::options_description desc("Usage", get_terminal_width(120));
+   desc.add_options() //
+      ("help,h", "produce help message") //
+      ("debug,d", po::bool_switch(&debug)->default_value(debug),
+       "use debug run() for io_context (noisy, for testing only)") //
+      ("threads,t", po::value<std::size_t>(&threads)->default_value(threads)->value_name("N"),
+       "number of extra threads that should run the io_context");
 
    po::variables_map vm;
    try
