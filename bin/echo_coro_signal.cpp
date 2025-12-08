@@ -2,7 +2,7 @@
 
 #include <map>
 
-awaitable<void> session(tcp::socket& socket)
+awaitable<void> echo(tcp::socket& socket)
 {
    std::array<char, 64 * 1024> data;
    for (;;)
@@ -58,7 +58,7 @@ awaitable<void> server(tcp::acceptor acceptor)
 
       auto [it, inserted] = sockets.emplace(id, std::move(socket));
       std::println("session {} created, number of active sessions: {}", id, sockets.size());
-      co_spawn(executor, session(it->second), [&sockets, id](const std::exception_ptr& ep)
+      co_spawn(executor, echo(it->second), [&sockets, id](const std::exception_ptr& ep)
       {
          sockets.erase(id);
          std::println("session {} finished with {}, {} sessions left", //

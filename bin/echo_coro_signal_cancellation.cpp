@@ -46,10 +46,13 @@ awaitable<void> server(tcp::acceptor acceptor)
    auto cs = co_await this_coro::cancellation_state;
 
    //
-   // The fact that cancellation_signal is not copyable is not surprising, but it is also not
-   // movable. This makes it a little difficult to handle, and we have to use a unique ptr.
+   // Create a map of active sessions. We only store the promise now.
    //
-   std::map<size_t, promise<void(std::exception_ptr)>> sessions;
+   struct Session
+   {
+      promise<void(std::exception_ptr)> promise;
+   };
+   std::map<size_t, Session> sessions;
 
    //
    // Main accept loop.
@@ -76,7 +79,7 @@ awaitable<void> server(tcp::acceptor acceptor)
             if (cs.cancelled() != none)
             {
                std::println("session {} cancelled", id);
-               co_return; // sessions out of scope now
+               co_return; // 'sessions' is out of scope now
             }
 
             sessions.erase(id);
@@ -91,8 +94,8 @@ awaitable<void> server(tcp::acceptor acceptor)
       //
       // Again, it is not enough to just check for 'ec', as we might run into the infamous ASIO
       // cancellation race condition: After signalling cancellation, async_accept() may still
-      // complete successfully if already scheduled for completion. Thus, we still have to check
-      // if we have been cancelled. ASIO's coroutine support helps with that and checks
+      // complete successfully if it was already scheduled for completion. Thus, we still have to
+      // check if we have been cancelled. ASIO's coroutine support helps with that and checks
       // automatically on the next suspension point, unless we disabled throw_if_cancelled().
       //
       if (ec || cs.cancelled() != cancellation_type::none)

@@ -27,7 +27,7 @@ using namespace ::testing;
 
 // =================================================================================================
 
-awaitable<void> session(tcp::socket& socket)
+awaitable<void> echo(tcp::socket& socket)
 {
    co_await this_coro::reset_cancellation_state(enable_total_cancellation());
 
@@ -60,7 +60,7 @@ awaitable<void> shutdown(tcp::socket& socket)
  * During graceful shutdown, only 'terminal' cancellation is accepted and causes the socket to be
  * closed immediately, as well.
  */
-awaitable<void> cancellable_session(tcp::socket socket)
+awaitable<void> session(tcp::socket socket)
 {
    auto cs = co_await this_coro::cancellation_state;
    auto ex = co_await this_coro::executor;
@@ -74,7 +74,7 @@ awaitable<void> cancellable_session(tcp::socket socket)
    co_await this_coro::reset_cancellation_state(enable_total_cancellation());
 
    // Finally, run session. Catch errors and re-throw anything that is not about cancellation.
-   auto [ep] = co_await co_spawn(ex, session(socket), as_tuple);
+   auto [ep] = co_await co_spawn(ex, echo(socket), as_tuple);
    std::println("session: {}", what(ep));
    if (ep && code(ep) != error::eof && cs.cancelled() == none)
       throw system_error{code(ep)};
@@ -131,7 +131,7 @@ awaitable<void> server(tcp::acceptor acceptor)
       {
          auto [it, _] = sessions.emplace(id, std::make_unique<cancellation_signal>());
          std::println("session {} created, number of active sessions: {}", id, sessions.size());
-         co_spawn(ex, cancellable_session(std::move(socket)),
+         co_spawn(ex, session(std::move(socket)),
                   bind_cancellation_slot(it->second->slot(), [&, id](const std::exception_ptr& ep)
          {
             assert(server_alive);

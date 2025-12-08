@@ -10,7 +10,7 @@
 using enum cancellation_type;
 using namespace experimental::awaitable_operators;
 
-awaitable<void> session(tcp::socket& socket)
+awaitable<void> echo(tcp::socket& socket)
 {
    // by default, an awaitable<> coroutine reacts to 'terminal' cancellation only
    co_await this_coro::reset_cancellation_state(enable_total_cancellation());
@@ -35,7 +35,7 @@ awaitable<void> shutdown(tcp::socket& socket)
    co_return;
 }
 
-awaitable<void> cancellable_session(tcp::socket socket)
+awaitable<void> session(tcp::socket socket)
 {
    auto cs = co_await this_coro::cancellation_state;
    auto ex = co_await this_coro::executor;
@@ -43,13 +43,13 @@ awaitable<void> cancellable_session(tcp::socket socket)
    //
    // For maximum flexibility, allow all cancellation types (total, partial terminal) and
    // don't throw when co_wait'ing something after cancellation. With this setup, we run
-   // the actual session coroutine.
+   // the actual echo task.
    //
    co_await this_coro::throw_if_cancelled(false);
    co_await this_coro::reset_cancellation_state(enable_total_cancellation());
 
-   // Finally, run session. Catch errors and re-throw anything that is not about cancellation.
-   auto [ep] = co_await co_spawn(ex, session(socket), as_tuple);
+   // Finally, run echo loop. Catch errors and re-throw anything that is not about cancellation.
+   auto [ep] = co_await co_spawn(ex, echo(socket), as_tuple);
    if (ep && code(ep) != error::eof && cs.cancelled() == none)
       throw system_error{code(ep)};
 
@@ -95,7 +95,7 @@ awaitable<void> server(tcp::acceptor acceptor)
       {
          auto signal = std::make_unique<cancellation_signal>();
 
-         co_spawn(ex, cancellable_session(std::move(socket)),
+         co_spawn(ex, session(std::move(socket)),
                   bind_cancellation_slot(signal->slot(), [&, id](const std::exception_ptr& ep)
          {
             sessions.erase(id);
@@ -150,7 +150,7 @@ awaitable<void> server(tcp::acceptor acceptor)
    //
    // Wait until all coroutines have finished.
    //
-   // The cannel is notified every time after a session is removed.
+   // The channel is notified every time after a session is removed.
    //
    std::println("server: waiting for sessions to complete...");
    while (!sessions.empty())
