@@ -50,7 +50,7 @@ awaitable<void> session(tcp::socket socket)
          response.body() = std::format("offset {}: {}", doc.GetErrorOffset(),
                                        GetParseError_En(doc.GetParseError()));
       }
-      response.body() += "\r\n";
+      response.body() += "\n";
       response.prepare_payload();
 
       co_await http::async_write(socket, response);

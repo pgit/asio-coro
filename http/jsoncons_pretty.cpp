@@ -27,9 +27,9 @@ awaitable<void> session(tcp::socket socket)
       http::response<http::string_body> response;
       try
       {
+         auto j = json::parse(request.body());
          response.result(http::status::ok);
          response.set(http::field::content_type, "application/json");
-         auto j = json::parse(request.body());
          encode_json_pretty(j, response.body());
       }
       catch (json_exception& ex)
@@ -38,7 +38,7 @@ awaitable<void> session(tcp::socket socket)
          response.set(http::field::content_type, "text/plain");
          response.body() = ex.what();
       }
-      response.body() += "\r\n";
+      response.body() += "\n";
       response.prepare_payload();
 
       co_await http::async_write(socket, response);
