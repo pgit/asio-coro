@@ -49,6 +49,24 @@ protected:
 
 // =================================================================================================
 
+template <typename T>
+awaitable<T> log_cancellation(awaitable<T>&& task)
+{
+   auto ex = co_await this_coro::executor;
+   auto cs = co_await this_coro::cancellation_state;
+
+   auto scope_exit = make_scope_exit([] { std::println("session coroutine frame destroyed"); });
+
+   cancellation_signal signal;
+   cs.slot().assign([&](cancellation_type ct)
+   {
+      std::println("session cancelled ({})", ct);
+      signal.emit(ct);
+   });
+
+   co_return co_await co_spawn(ex, std::forward<awaitable<T>>(task),
+                               bind_cancellation_slot(signal.slot()));
+}
 //
 // This testcase simulates what can happen when cancelling any asynchronous operation:
 // If the completion handler is already scheduled for execution, then cancellation cannot
@@ -58,30 +76,56 @@ protected:
 // To simulate an asynchronous operation that is already scheduled for completion, we just post().
 // This completes unconditionally, so the continuation of the coroutine is scheduled immediately.
 //
+/**
+ # Consider enabling BOOST_ASIO_ENABLE_HANDLER_TRACKING in toplevel CMakeLists.txt for this
+ * https://think-async.com/Asio/asio-1.36.0/doc/asio/overview/core/handler_tracking.html
+ *
+ * @asio|1765221471.794160|0*1|io_context@0x5c2eb9f281f0.execute
+ * @asio|1765221471.794178|>1|
+ * @asio|1765221471.794202|1*2|io_context@0x5c2eb9f281f0.execute
+ * @asio|1765221471.794221|1*3|io_context@0x5c2eb9f281f0.execute
+ * @asio|1765221471.794223|<1|
+ * --- 0 ------------------------------------------------------------------------
+ * @asio|1765221471.794251|>2|
+ * resumed
+ * @asio|1765221471.794257|<2|
+ * --- 1 ------------------------------------------------------------------------
+ * @asio|1765221471.794270|>3|
+ * done
+ * @asio|1765221471.794282|<3|
+ * --- 2 ------------------------------------------------------------------------
+ */
 TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resumed)
 {
-   test = [this]() -> awaitable<void>
+   co_spawn(executor, [this]() -> awaitable<void> //                                           |0*1|
    {
-      auto ex = co_await this_coro::executor;
+      auto ex = co_await this_coro::executor; //                                                |>1|
       bool resumed = false;
       auto promise = std::make_optional(co_spawn(ex, [&]() -> awaitable<void>
       {
          auto cs = co_await this_coro::cancellation_state;
+         cs.slot().assign([&](cancellation_type ct) { //
+            std::println("cancelled ({})", ct);                                             //   |1|
+         });
+
          EXPECT_EQ(cs.cancelled(), cancellation_type::none);
-         co_await post(deferred); // yield, is scheduled for completion immediately
-         // ...
+         co_await post(deferred); // yield, is scheduled for completion immediately            |1*2|
+         // ... later ...                                                                       |>2|
+         std::println("resumed"); //                                                             |2|
          resumed = true;
          EXPECT_EQ(cs.cancelled(), cancellation_type::terminal);
-         co_return;
+         co_return; //                                                                          |<2|
       }, use_promise));
 
       promise.reset();
       EXPECT_FALSE(resumed);
-      co_await yield();
+      co_await post(deferred); //                                                              |1*3|
+      //                                                                                        |<1|
+      // ... later ...                                                                          |>3|
+      std::println("done"); //                                                                   |3|
       EXPECT_TRUE(resumed);
-   };
-
-   EXPECT_CALL(*this, on_complete(error_code{}));
+      co_return; //                                                                             |<3|
+   }, detached);
 }
 
 // -------------------------------------------------------------------------------------------------
