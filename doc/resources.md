@@ -6,6 +6,7 @@
 * 🟥 [Requirements on asynchronous operations](https://www.boost.org/doc/libs/1_89_0/doc/html/boost_asio/reference/asynchronous_operations.html)
 
 ### Blogs
+* 🟩 [Andrzej Krzemieński - Event-driven flows](https://akrzemi1.wordpress.com/2025/11/16/event-driven-flows/)
 * 🟩 [Notes on structured concurrency, or: Go statement considered harmful](https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/)
 * 🟨 [Moving Boost forward: Asio, coroutines, and maybe even modules](https://cppalliance.org/ruben/2025/04/10/Ruben2025Q1Update.html)
 * 🟨 [Asio 201 - timeouts, cancellation & custom tokens](https://cppalliance.org/asio/2023/01/02/Asio201Timeouts.html)
