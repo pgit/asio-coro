@@ -32,15 +32,14 @@ awaitable<void> session(tcp::socket socket)
       co_await http::async_read(socket, buffer, request);
 
       http::response<http::string_body> response;
-      response.result(http::status::ok);
-      response.set(http::field::content_type, "application/json");
-
       Document doc;
       if (!doc.ParseInsitu(const_cast<char*>(request.body().c_str())).HasParseError())
       {
          rapidjson::StringBuffer buffer;
          rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
          doc.Accept(writer);
+         response.result(http::status::ok);
+         response.set(http::field::content_type, "application/json");
          response.body() = std::move(buffer).GetString();
       }
       else
