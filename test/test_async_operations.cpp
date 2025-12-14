@@ -355,7 +355,10 @@ public:
 // asynchronous operation will continue to run. Eventually, it will call ++done, which is
 // a use-after-free. Or the ++done bleeds into one of the next testcases, as has happened here:
 // https://github.com/pgit/asio-coro/actions/runs/18305296533/job/52121061667#step:6:231
-// 
+//
+// Starting with Boost 1.90, this doesn't even compile any more.
+//
+#if BOOST_VERSION < 109000
 TEST_F(ComposedCoro, DISABLED_Unbound)
 {
    boost::asio::io_context context;
@@ -363,6 +366,7 @@ TEST_F(ComposedCoro, DISABLED_Unbound)
    ::run(context);
    EXPECT_EQ(done, 0);
 }
+#endif
 
 //
 // This test is only (somewhat) safe because there is a longer sleep in the test that follows.
@@ -372,6 +376,9 @@ TEST_F(ComposedCoro, DISABLED_Unbound)
 //
 // Note that even with BOOST_ASIO_NO_TS_EXECUTORS, the system executor is used as fallback.
 //
+// Starting with Boost 1.90, this doesn't even compile any more.
+//
+#if BOOST_VERSION < 109000
 TEST_F(ComposedCoro, DISABLED_DefaultExecutor)
 {
    boost::asio::io_context context;
@@ -380,6 +387,7 @@ TEST_F(ComposedCoro, DISABLED_DefaultExecutor)
    ::run(context);
    EXPECT_EQ(done, 2);
 }
+#endif
 
 //
 // Only when binding both tasks to the executor, even with a 'detached' completion token, this
