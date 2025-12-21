@@ -14,6 +14,10 @@ using namespace boost::asio;
  *
  * This coroutine supports 'terminal' cancellation only. Any remaining buffered data is printed
  * before returning. If logging was interrupted within a line, that partial line is printed as well.
+ *
+ * To do this, the coroutine is resumed one last time after it has been cancelled. At that time, it
+ * does not access the \p pipe object any more (which is a reference to a parent object that may
+ * already be out of scope.
  */
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {

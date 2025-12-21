@@ -46,7 +46,7 @@ awaitable<void> server(tcp::acceptor acceptor)
    auto cs = co_await this_coro::cancellation_state;
 
    //
-   // Create a map of active sessions. We only store the promise now.
+   // Create a map of active sessions. We only store the promise here.
    //
    struct Session
    {
@@ -70,8 +70,7 @@ awaitable<void> server(tcp::acceptor acceptor)
       //
       if (!ec)
       {
-         auto promise =
-            co_spawn(ex, [&sessions, id, socket = std::move(socket)] mutable -> awaitable<void>
+         auto task = [&sessions, id, socket = std::move(socket)] mutable -> awaitable<void>
          {
             auto ex = co_await this_coro::executor;
             auto cs = co_await this_coro::cancellation_state;
@@ -84,7 +83,8 @@ awaitable<void> server(tcp::acceptor acceptor)
 
             sessions.erase(id);
             std::println("session {} finished, number of active sessions: {}", id, sessions.size());
-         }, use_promise);
+         };
+         auto promise = co_spawn(ex, std::move(task), use_promise);
 
          auto [it, _] = sessions.emplace(id, std::move(promise));
          std::println("session {} created, number of active sessions: {}", id, sessions.size());
@@ -107,6 +107,9 @@ awaitable<void> server(tcp::acceptor acceptor)
 
    std::println("-----------------------------------------------------------------------------");
 
+   //
+   // Even if we didn't clear the sessions here explicitly, the destructor would.
+   //
    sessions.clear();
 
    std::println("==============================================================================");
