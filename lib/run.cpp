@@ -13,6 +13,7 @@ size_t run(boost::asio::io_context& context)
 
 size_t runDebug(boost::asio::io_context& context)
 {
+   std::println("------------------------------------------------------------------------------");
    size_t i = 0;
    using namespace std::chrono;
    for (auto t0 = steady_clock::now(); context.run_one(); ++i)
