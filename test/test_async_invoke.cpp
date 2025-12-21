@@ -2,13 +2,11 @@
 #include "async_invoke.hpp"
 #include "run.hpp"
 
-#include <boost/asio.hpp>
-
 #include <gtest/gtest.h>
 
 #include <thread>
 
-using namespace boost::asio;
+using namespace asio;
 using boost::system::error_code;
 
 using namespace ::testing;

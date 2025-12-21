@@ -1,5 +1,4 @@
 #pragma once
-#include <boost/asio.hpp>
 #include <boost/asio/associated_allocator.hpp>
 #include <boost/asio/associated_cancellation_slot.hpp>
 #include <boost/asio/associated_executor.hpp>
@@ -29,7 +28,7 @@ template <typename F, typename... Args>
 auto bind_all(F&& f, Args&&... args)
 {
    return [f = std::forward<F>(f),
-           args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+           args = std::make_tuple(std::forward<Args>(args)...)]() mutable { //
       return std::apply(std::move(f), std::move(args));
    };
 }
