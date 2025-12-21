@@ -65,7 +65,7 @@ awaitable<void> session(tcp::socket socket)
          response.set(http::field::content_type, "text/plain");
          response.body() = ex.what();
       }
-      response.body() += "\n";
+      response.body() += '\n';
       response.prepare_payload();
 
       co_await http::async_write(socket, response);
