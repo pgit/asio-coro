@@ -1,0 +1,319 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Form Sync to Async to As-Sync &mdash; ASIO &amp; CORO  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="ASIO &amp; CORO documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            ASIO & CORO
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Form Sync to Async to As-Sync</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#synchronous">Synchronous</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#echo-sync-cpp">echo_sync.cpp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#synchronous-with-threads">Synchronous (with threads)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#asynchronous">Asynchronous</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#echo-async">echo_async</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#main">main()</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#server">Server</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#session">Session</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#as-synchronous-coroutines">As-Synchronous (Coroutines)</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">ASIO & CORO</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Form Sync to Async to As-Sync</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/echo.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="form-sync-to-async-to-as-sync">
+<h1>Form Sync to Async to As-Sync<a class="headerlink" href="#form-sync-to-async-to-as-sync" title="Link to this heading"></a></h1>
+<p>The objective is to implement a simple TCP Echo Server that accepts TCP incoming connections and simply echoes anything that is sent to it.</p>
+<p>We start off with a very simple, synchronous implementation and use that to motivate the use of synchronous operations, which is what ASIO is all about.</p>
+<p>Finally, we escape callback hell by introducing <a class="reference external" href="https://en.cppreference.com/w/cpp/language/coroutines.html">C++20 Coroutines</a>.</p>
+<section id="synchronous">
+<h2>Synchronous<a class="headerlink" href="#synchronous" title="Link to this heading"></a></h2>
+<section id="echo-sync-cpp">
+<h3>echo_sync.cpp<a class="headerlink" href="#echo-sync-cpp" title="Link to this heading"></a></h3>
+<p>Let’s start off simple: Introduce the <a class="reference external" href="https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/io_context.html">io_context</a> and <a class="reference external" href="https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/ip__tcp/acceptor.html">acceptor</a> classes and how to create a simple TCP listening socket accepting incoming connections.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;boost/asio.hpp&gt;</span>
+
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">boost</span><span class="o">::</span><span class="nn">asio</span><span class="p">;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">ip</span><span class="o">::</span><span class="n">tcp</span><span class="p">;</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">session</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">socket</span><span class="w"> </span><span class="n">socket</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="kt">char</span><span class="p">,</span><span class="w"> </span><span class="mi">64</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="o">&gt;</span><span class="w"> </span><span class="n">data</span><span class="p">;</span>
+<span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span>
+<span class="w">   </span><span class="p">{</span>
+<span class="w">      </span><span class="n">boost</span><span class="o">::</span><span class="n">system</span><span class="o">::</span><span class="n">error_code</span><span class="w"> </span><span class="n">ec</span><span class="p">;</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">socket</span><span class="p">.</span><span class="n">read_some</span><span class="p">(</span><span class="n">buffer</span><span class="p">(</span><span class="n">data</span><span class="p">),</span><span class="w"> </span><span class="n">ec</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">ec</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">error</span><span class="o">::</span><span class="n">eof</span><span class="p">)</span>
+<span class="w">         </span><span class="k">return</span><span class="p">;</span>
+<span class="w">      </span><span class="n">write</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span><span class="w"> </span><span class="n">buffer</span><span class="p">(</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">));</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">server</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="w"> </span><span class="n">acceptor</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span>
+<span class="w">      </span><span class="n">session</span><span class="p">(</span><span class="n">acceptor</span><span class="p">.</span><span class="n">accept</span><span class="p">());</span>
+<span class="p">}</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="n">io_context</span><span class="w"> </span><span class="n">context</span><span class="p">;</span>
+<span class="w">   </span><span class="n">server</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="p">{</span><span class="n">context</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="n">tcp</span><span class="o">::</span><span class="n">v6</span><span class="p">(),</span><span class="w"> </span><span class="mi">55555</span><span class="p">}});</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>What’s wrong here?</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This code can handle only one connection at a time!</p>
+</div>
+</section>
+<section id="synchronous-with-threads">
+<h3>Synchronous (with threads)<a class="headerlink" href="#synchronous-with-threads" title="Link to this heading"></a></h3>
+<p>To solve the problem, we can simply start a new thread for each accepted connection:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">server</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="w"> </span><span class="n">acceptor</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="kr">thread</span><span class="p">(</span><span class="n">session</span><span class="p">,</span><span class="w"> </span><span class="n">acceptor</span><span class="p">.</span><span class="n">accept</span><span class="p">()).</span><span class="n">detach</span><span class="p">();</span><span class="w">  </span><span class="c1">// was: session(a.accept());</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Now the echo server is capable of handling multiple connections in parallel. A new thread is created for each connection.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Spawning a thread per connection is slow and does not scale!</p>
+</div>
+</section>
+</section>
+<section id="asynchronous">
+<h2>Asynchronous<a class="headerlink" href="#asynchronous" title="Link to this heading"></a></h2>
+<p>So, spawning a new thread for each connection does not scale. So what can we do instead? Blocking a thread to wait for something to happen is not an option any more.</p>
+<p>Enter the world of <a class="reference external" href="https://www.boost.org/doc/libs/latest/doc/html/boost_asio/overview/model/async_ops.html">Asynchronous Operations</a>. Instead of using their <em>sync</em> counterparts, we now have <a class="reference external" href="https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/basic_socket_acceptor/async_accept.html">async_accept</a>. In the echo loop, it is <a class="reference external" href="https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/basic_stream_socket/async_read_some.html">async_read_some</a> and <a class="reference external" href="https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/basic_stream_socket/async_write_some.html">async_write_some</a>.</p>
+<section id="echo-async">
+<h3>echo_async<a class="headerlink" href="#echo-async" title="Link to this heading"></a></h3>
+<section id="main">
+<h4>main()<a class="headerlink" href="#main" title="Link to this heading"></a></h4>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="n">boost</span><span class="o">::</span><span class="n">asio</span><span class="o">::</span><span class="n">io_context</span><span class="w"> </span><span class="n">context</span><span class="p">;</span>
+<span class="w">   </span><span class="n">server</span><span class="w"> </span><span class="n">server</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="p">{</span><span class="n">context</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="n">tcp</span><span class="o">::</span><span class="n">v6</span><span class="p">(),</span><span class="w"> </span><span class="mi">55555</span><span class="p">}});</span>
+<span class="w">   </span><span class="n">context</span><span class="p">.</span><span class="n">run</span><span class="p">();</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="server">
+<h4>Server<a class="headerlink" href="#server" title="Link to this heading"></a></h4>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">server</span>
+<span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">   </span><span class="k">explicit</span><span class="w"> </span><span class="n">server</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="w"> </span><span class="n">acceptor</span><span class="p">)</span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">acceptor_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">acceptor</span><span class="p">))</span>
+<span class="w">   </span><span class="p">{</span>
+<span class="w">      </span><span class="n">do_accept</span><span class="p">();</span>
+<span class="w">   </span><span class="p">}</span>
+
+<span class="k">private</span><span class="o">:</span>
+<span class="w">   </span><span class="kt">void</span><span class="w"> </span><span class="n">do_accept</span><span class="p">()</span>
+<span class="w">   </span><span class="p">{</span>
+<span class="w">      </span><span class="n">acceptor_</span><span class="p">.</span><span class="n">async_accept</span><span class="p">([</span><span class="k">this</span><span class="p">](</span><span class="n">error_code</span><span class="w"> </span><span class="n">ec</span><span class="p">,</span><span class="w"> </span><span class="n">tcp</span><span class="o">::</span><span class="n">socket</span><span class="w"> </span><span class="n">socket</span><span class="p">)</span>
+<span class="w">         </span><span class="p">{</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ec</span><span class="p">)</span>
+<span class="w">               </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">session</span><span class="o">&gt;</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">socket</span><span class="p">))</span><span class="o">-&gt;</span><span class="n">start</span><span class="p">();</span>
+
+<span class="w">            </span><span class="n">do_accept</span><span class="p">();</span>
+<span class="w">         </span><span class="p">});</span>
+<span class="w">   </span><span class="p">}</span>
+
+<span class="w">   </span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="w"> </span><span class="n">acceptor_</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+</section>
+<section id="session">
+<h4>Session<a class="headerlink" href="#session" title="Link to this heading"></a></h4>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">session</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">enable_shared_from_this</span><span class="o">&lt;</span><span class="n">session</span><span class="o">&gt;</span>
+<span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">   </span><span class="k">explicit</span><span class="w"> </span><span class="n">session</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">socket</span><span class="w"> </span><span class="n">socket</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">socket_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">socket</span><span class="p">))</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">   </span><span class="kt">void</span><span class="w"> </span><span class="n">start</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">do_read</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+
+<span class="k">private</span><span class="o">:</span>
+<span class="w">   </span><span class="kt">void</span><span class="w"> </span><span class="n">do_read</span><span class="p">()</span>
+<span class="w">   </span><span class="p">{</span>
+<span class="w">      </span><span class="k">auto</span><span class="w"> </span><span class="n">self</span><span class="p">(</span><span class="n">shared_from_this</span><span class="p">());</span>
+<span class="w">      </span><span class="n">socket_</span><span class="p">.</span><span class="n">async_read_some</span><span class="p">(</span><span class="n">buffer</span><span class="p">(</span><span class="n">data_</span><span class="p">),</span>
+<span class="w">                              </span><span class="p">[</span><span class="k">this</span><span class="p">,</span><span class="w"> </span><span class="n">self</span><span class="p">](</span><span class="n">error_code</span><span class="w"> </span><span class="n">ec</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">length</span><span class="p">)</span>
+<span class="w">                              </span><span class="p">{</span>
+<span class="w">                                 </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ec</span><span class="p">)</span>
+<span class="w">                                    </span><span class="n">do_write</span><span class="p">(</span><span class="n">length</span><span class="p">);</span>
+<span class="w">                              </span><span class="p">});</span>
+<span class="w">   </span><span class="p">}</span>
+
+<span class="w">   </span><span class="kt">void</span><span class="w"> </span><span class="n">do_write</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">length</span><span class="p">)</span>
+<span class="w">   </span><span class="p">{</span>
+<span class="w">      </span><span class="k">auto</span><span class="w"> </span><span class="n">self</span><span class="p">(</span><span class="n">shared_from_this</span><span class="p">());</span>
+<span class="w">      </span><span class="n">boost</span><span class="o">::</span><span class="n">asio</span><span class="o">::</span><span class="n">async_write</span><span class="p">(</span><span class="n">socket_</span><span class="p">,</span><span class="w"> </span><span class="n">buffer</span><span class="p">(</span><span class="n">data_</span><span class="p">,</span><span class="w"> </span><span class="n">length</span><span class="p">),</span>
+<span class="w">                              </span><span class="p">[</span><span class="k">this</span><span class="p">,</span><span class="w"> </span><span class="n">self</span><span class="p">](</span><span class="n">error_code</span><span class="w"> </span><span class="n">ec</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="cm">/* length */</span><span class="p">)</span>
+<span class="w">                              </span><span class="p">{</span>
+<span class="w">                                 </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ec</span><span class="p">)</span>
+<span class="w">                                    </span><span class="n">do_read</span><span class="p">();</span>
+<span class="w">                              </span><span class="p">});</span>
+<span class="w">   </span><span class="p">}</span>
+
+<span class="w">   </span><span class="n">tcp</span><span class="o">::</span><span class="n">socket</span><span class="w"> </span><span class="n">socket_</span><span class="p">;</span>
+<span class="w">   </span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="kt">uint8_t</span><span class="p">,</span><span class="w"> </span><span class="mi">64</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="o">&gt;</span><span class="w"> </span><span class="n">data_</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p>The control flow can be visualized like this:</p>
+<img alt="_images/async.png" src="_images/async.png" />
+<p>Also note that the session <em>state</em> is maintained as class members (<code class="docutils literal notranslate"><span class="pre">socket_</span></code> and <code class="docutils literal notranslate"><span class="pre">data_</span></code>).</p>
+</section>
+</section>
+</section>
+<section id="as-synchronous-coroutines">
+<h2>As-Synchronous (Coroutines)<a class="headerlink" href="#as-synchronous-coroutines" title="Link to this heading"></a></h2>
+<p>Modern implementations using C++20 coroutines (co_await / awaitable) with Asio’s
+awaitable primitives. Key points:</p>
+<ul class="simple">
+<li><p>Offers sequential-style code while remaining non-blocking.</p></li>
+<li><p>Removes much of the boilerplate and state-machine complexity of callbacks.</p></li>
+<li><p>Can be run single-threaded or on a multi-threaded io_context.</p></li>
+<li><p>Typically uses asio::awaitable and use_awaitable completion token (or similar) provided by the Asio variant used in this project.</p></li>
+</ul>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;boost/asio.hpp&gt;</span>
+
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">boost</span><span class="o">::</span><span class="nn">asio</span><span class="p">;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">ip</span><span class="o">::</span><span class="n">tcp</span><span class="p">;</span>
+
+<span class="n">awaitable</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">&gt;</span><span class="w"> </span><span class="n">session</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">socket</span><span class="w"> </span><span class="n">socket</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="kt">char</span><span class="p">,</span><span class="w"> </span><span class="mi">64</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="o">&gt;</span><span class="w"> </span><span class="n">data</span><span class="p">;</span>
+<span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span>
+<span class="w">   </span><span class="p">{</span>
+<span class="w">      </span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">co_await</span><span class="w"> </span><span class="n">socket</span><span class="p">.</span><span class="n">async_read_some</span><span class="p">(</span><span class="n">buffer</span><span class="p">(</span><span class="n">data</span><span class="p">));</span>
+<span class="w">      </span><span class="k">co_await</span><span class="w"> </span><span class="n">async_write</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span><span class="w"> </span><span class="n">buffer</span><span class="p">(</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">));</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="n">awaitable</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">&gt;</span><span class="w"> </span><span class="n">server</span><span class="p">(</span><span class="n">tcp</span><span class="o">::</span><span class="n">acceptor</span><span class="w"> </span><span class="n">a</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span>
+<span class="w">      </span><span class="n">co_spawn</span><span class="p">(</span><span class="n">a</span><span class="p">.</span><span class="n">get_executor</span><span class="p">(),</span><span class="w"> </span><span class="n">session</span><span class="p">(</span><span class="k">co_await</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">async_accept</span><span class="p">()),</span><span class="w"> </span><span class="n">detached</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="n">main</span><span class="p">()</span>
+<span class="p">{</span>
+<span class="w">   </span><span class="n">io_context</span><span class="w"> </span><span class="n">context</span><span class="p">;</span>
+<span class="w">   </span><span class="n">co_spawn</span><span class="p">(</span><span class="n">context</span><span class="p">,</span><span class="w"> </span><span class="n">server</span><span class="p">({</span><span class="n">context</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="n">tcp</span><span class="o">::</span><span class="n">v6</span><span class="p">(),</span><span class="w"> </span><span class="mi">55555</span><span class="p">}}),</span><span class="w"> </span><span class="n">detached</span><span class="p">);</span>
+<span class="w">   </span><span class="n">context</span><span class="p">.</span><span class="n">run</span><span class="p">();</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Start with sync for learning and debugging.</p></li>
+<li><p>Use thread-sync or thread pools for moderate concurrency with simpler synchronous code structure.</p></li>
+<li><p>Prefer async or coro for high concurrency and lower resource usage.</p></li>
+<li><p>Coroutines give clearer, maintainable code compared to callback-based async, at the cost of needing a modern C++ toolchain and coroutine-aware Asio setup.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="ASIO &amp; CORO documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Peter Eisenlohr.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
