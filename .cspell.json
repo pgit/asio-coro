@@ -24,6 +24,7 @@
         "liburing",
         "lldb",
         "lldbinit",
+        "mkdocs",
         "noninteractive",
         "Nullary",
         "psedoc",
