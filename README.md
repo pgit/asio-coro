@@ -44,4 +44,4 @@ A lot of examples are implement as Google Test units `test/test_*.cpp`. This way
 
 # Resources
 
-See [doc/resources.md](doc/resources.md).
+See [docs/resources.md](docs/resources.md).
