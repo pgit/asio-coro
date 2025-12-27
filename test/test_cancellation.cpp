@@ -49,8 +49,14 @@ protected:
 
 // =================================================================================================
 
-template <typename T>
-awaitable<T> log_cancellation(awaitable<T>&& task)
+
+
+//
+// Wrapp a task to log cancellation events.
+//
+#if 1
+template <AwaitableOrCallableAwaitable T>
+awaitable<void> log_cancellation(T&& task)
 {
    auto ex = co_await this_coro::executor;
    auto cs = co_await this_coro::cancellation_state;
@@ -60,13 +66,17 @@ awaitable<T> log_cancellation(awaitable<T>&& task)
    cancellation_signal signal;
    cs.slot().assign([&](cancellation_type ct)
    {
-      std::println("session cancelled ({})", ct);
+      std::println("session cancelled ({}), emitting signal...", ct);
       signal.emit(ct);
+      std::println("session cancelled ({}), emitting signal... done", ct);
    });
 
-   co_return co_await co_spawn(ex, std::forward<awaitable<T>>(task),
+   co_return co_await co_spawn(ex, std::forward<T>(task),
                                bind_cancellation_slot(signal.slot()));
 }
+#else
+#define log_cancellation(task) task
+#endif
 
 //
 // This testcase simulates what can happen when cancelling any asynchronous operation:
@@ -85,10 +95,10 @@ awaitable<T> log_cancellation(awaitable<T>&& task)
  * ------------------------------------------------------------------------------
  * @asio|1765835122.024168|>1|
  * started
- * @asio|1765835122.024186|1^2|in '...' (/workspaces/asio-coro/test/test_cancellation.cpp:119)
+ * @asio|1765835122.024186|1^2|in '...' (/workspaces/asio-coro/test/test_cancellation.cpp:121)
  * @asio|1765835122.024186|1*2|io_context@0x63b002a3a0f0.execute
  * cancelled (terminal)
- * @asio|1765835122.024208|1^3|in '...' (/workspaces/asio-coro/test/test_cancellation.cpp:129)
+ * @asio|1765835122.024208|1^3|in '...' (/workspaces/asio-coro/test/test_cancellation.cpp:130)
  * @asio|1765835122.024208|1*3|io_context@0x63b002a3a0f0.execute
  * @asio|1765835122.024212|<1|
  * --- 0 ------------------------------------------------------------------------
@@ -108,7 +118,7 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resum
       // |>1|
       auto ex = co_await this_coro::executor;
       bool resumed = false;
-      auto promise = std::make_optional(co_spawn(ex, [&]() -> awaitable<void>
+      auto promise = std::make_optional(co_spawn(ex, log_cancellation([&]() -> awaitable<void>
       {
          // still in |1| -- with use_promise, co_spawn executes the awaitable eagerly!
          std::println("started");
@@ -123,7 +133,7 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resum
          resumed = true;
          EXPECT_EQ(cs.cancelled(), cancellation_type::terminal);
          co_return; // |<2|
-      }, use_promise));
+      }), use_promise));
 
       promise.reset(); // executes cancellation handler above and prints "cancelled (terminal)"
       EXPECT_FALSE(resumed);
@@ -157,24 +167,25 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_THEN_is_not_resumed)
    test = [this]() -> awaitable<void>
    {
       auto ex = co_await this_coro::executor;
-      auto promise = std::make_optional(co_spawn(ex, [&, closure = make_scope_exit([]{
-         std::println("closure destroyed");
-      })]() -> awaitable<void>
+      auto promise = std::make_optional(co_spawn(ex,
+                                                 [&, closure = make_scope_exit([]
+      { std::println("closure destroyed"); })]() -> awaitable<void>
       {
-         auto frame = make_scope_exit([]{std::println("frame destroyed");});
          auto cs = co_await this_coro::cancellation_state;
+         auto frame =
+            make_scope_exit([&] { std::println("frame destroyed ({})", cs.cancelled()); });
          EXPECT_EQ(cs.cancelled(), cancellation_type::none);
          std::println("sleeping");
          co_await sleep(1s);
-         EXPECT_EQ(cs.cancelled(), cancellation_type::terminal);
          EXPECT_TRUE(false) << "this code is never executed";
-      }, use_promise));
+      },
+                                                 use_promise));
 
-      co_await yield();
+      // co_await yield();
       std::println("cancelling...");
       promise.reset();
       std::println("cancelling... done");
-      co_await yield();
+      // co_await yield();
       std::println("done");
    };
 
@@ -185,6 +196,8 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_THEN_is_not_resumed)
 
 //
 // However, if you catch the cancellation error, the coroutine is always resumed:
+// This time, there is no cancellation race, and we get both the error code 'operation_canceled'
+// and cancellation type 'terminal'.
 //
 TEST_F(Cancellation, WHEN_task_is_cancelled_and_error_is_caught_THEN_is_resumed)
 {
@@ -198,7 +211,7 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_and_error_is_caught_THEN_is_resumed)
          EXPECT_EQ(cs.cancelled(), cancellation_type::none);
          steady_timer timer(co_await this_coro::executor);
          timer.expires_after(1s);
-         auto [ec] = co_await timer.async_wait(as_tuple);  // catch cancellation error
+         auto [ec] = co_await timer.async_wait(as_tuple); // catch cancellation error
          // ...
          resumed = true;
          EXPECT_EQ(ec, make_system_error(boost::system::errc::operation_canceled));

@@ -58,9 +58,8 @@ protected:
       //
       // Solution: experimental::use_promise.
       //
-      auto group =
-         experimental::make_parallel_group(co_spawn(executor, log_stdout(out), as_tuple),
-                                           co_spawn(executor, log_stderr(err), as_tuple));
+      auto group = experimental::make_parallel_group(co_spawn(executor, log_stdout(out), as_tuple),
+                                                     co_spawn(executor, log_stderr(err), as_tuple));
       auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
 
       //

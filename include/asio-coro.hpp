@@ -1,4 +1,5 @@
 #pragma once
+#include "config.hpp"
 #include "formatters.hpp"
 
 #include <boost/asio.hpp>
@@ -8,6 +9,7 @@
 
 #include <filesystem>
 #include <print>
+#include <type_traits>
 
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
 using namespace asio;
@@ -110,6 +112,42 @@ template <typename F>
 concept TestConcept = requires(F f, tcp::socket sock) {
    { f(std::move(sock)) } -> std::same_as<awaitable<void>>;
 };
+
+// =================================================================================================
+
+namespace asio_coro_detail
+{
+   template <typename T>
+   struct is_awaitable_impl : std::false_type
+   {
+   };
+
+   template <typename R>
+   struct is_awaitable_impl<asio::awaitable<R>> : std::true_type
+   {
+   };
+
+   template <typename T>
+   inline constexpr bool is_awaitable_v = is_awaitable_impl<std::remove_cvref_t<T>>::value;
+}
+
+/**
+ * Concept: a type that is an `asio::awaitable<...>` (after removing cv/ref).
+ */
+template <typename T>
+concept AwaitableOf = asio_coro_detail::is_awaitable_v<T>;
+
+/**
+ * Concept: a callable that, when invoked with no arguments, returns an `asio::awaitable<...>`.
+ */
+template <typename F>
+concept CallableAwaitable = std::invocable<F> && AwaitableOf<std::invoke_result_t<F>>;
+
+/**
+ * Concept: either an awaitable type or a callable that returns an awaitable.
+ */
+template <typename T>
+concept AwaitableOrCallableAwaitable = AwaitableOf<T> || CallableAwaitable<T>;
 
 // =================================================================================================
 

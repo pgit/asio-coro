@@ -6,6 +6,8 @@
 
 #include <boost/algorithm/string/join.hpp>
 
+// IWYU pragma: always_keep
+
 namespace asio = boost::asio; // NOLINT(misc-unused-alias-decls)
 using namespace asio;
 using ip::tcp;

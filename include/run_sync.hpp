@@ -1,11 +1,12 @@
 #pragma once
-#include <boost/asio.hpp>
+#include "run.hpp"
+
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 
 #include <type_traits>
 #include <utility>
-#include "run.hpp"
 
 namespace asio = boost::asio;
 
@@ -15,7 +16,9 @@ namespace asio = boost::asio;
  * Helper function to run an \c asio::awaitable task synchronously.
  *
  * The function creates a temporary IO context and \c co_spawns the task on it. Then, it runs the
- * context until the coroutine has finished.
+ * context until the coroutine has finished (and no other work has been created in the meantime).
+ *
+ * This function can be seen as the counterpart to \c async_invoke.
  */
 template <typename Awaitable>
 auto run_sync(Awaitable&& awaitable) -> std::decay_t<typename Awaitable::value_type>

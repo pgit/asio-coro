@@ -1,4 +1,4 @@
-#include "formatters.hpp" // IWYU pragma: keep
+#include "formatters.hpp"
 
 #include <gtest/gtest.h>
 

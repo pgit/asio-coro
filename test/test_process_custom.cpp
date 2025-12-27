@@ -54,6 +54,11 @@ class ProcessCustom : public ProcessBase,
                       public ::testing::WithParamInterface<Escalation>
 {
 protected:
+   void SetUp() override
+   {
+      // BOOST_ASIO_ENABLE_HANDLER_TRACKING creates a lot of output to STDERR
+      EXPECT_CALL(*this, on_stderr(_)).Times(AnyNumber());
+   }
    void TearDown() override { run(); }
 
    /**

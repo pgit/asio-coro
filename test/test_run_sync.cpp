@@ -1,4 +1,3 @@
-#include "asio-coro.hpp"
 #include "run_sync.hpp"
 
 #include <gtest/gtest.h>

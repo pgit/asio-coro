@@ -1,5 +1,5 @@
 #include "asio-coro.hpp"
-#include "formatters.hpp" // IWYU pragma: keep
+#include "formatters.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>

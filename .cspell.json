@@ -16,6 +16,7 @@
         "HISTFILE",
         "Insitu",
         "iputils",
+        "IWYU",
         "jsoncons",
         "libasan",
         "libc",
