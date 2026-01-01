@@ -32,7 +32,6 @@ TEST(Lifetime, WHEN_task_is_spawned_THEN_work_is_tracked)
 
 TEST(Lifetime, WHEN_task_is_finished_THEN_sets_future)
 {
-   bool ok = false;
    boost::asio::io_context context;
    auto future = co_spawn(context.get_executor(), [&]() -> asio::awaitable<bool>
    {

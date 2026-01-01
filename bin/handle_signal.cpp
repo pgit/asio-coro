@@ -1,3 +1,8 @@
+/**
+ * \file handle_signal.cpp
+ *
+ * Helper program that reacts to signals in a configurable way, for use in testcases.
+ */
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>

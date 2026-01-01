@@ -13,7 +13,6 @@
 using namespace std::chrono_literals;
 using namespace boost::asio::experimental::awaitable_operators;
 namespace errc = boost::system::errc;
-using errc::make_error_code;
 
 // =================================================================================================
 
@@ -598,12 +597,13 @@ TEST(Threads, Strand)
 
    constexpr size_t N = 100, C = 100;
    for (size_t i = 0; i < N; ++i)
-      co_spawn(executor, [&, i]() -> awaitable<void>
+      co_spawn(executor, [&, i]() -> awaitable<void> // NOLINT(unused-lambda-capture)
       {
          for (size_t u = 0; u < C; ++u)
          {
             co_await post(executor, bind_executor(strand));
             // std::println("{} {} {}", i, u, std::this_thread::get_id());
+            std::ignore = i;
             counter++;
          }
       }, detached); // don't invoke lambda here and let co_spawn do that -- keeps the closure alive

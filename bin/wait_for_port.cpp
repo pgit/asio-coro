@@ -4,10 +4,8 @@
 #include <boost/program_options.hpp>
 
 #include <iostream>
-#include <ranges>
 
 using std::chrono::milliseconds;
-
 namespace po = boost::program_options;
 
 int main(int argc, char* argv[])

@@ -39,7 +39,7 @@ awaitable<void> session(tcp::socket downstream)
    auto endpoints = co_await resolver.async_resolve("localhost", "55555");
 
    tcp::socket upstream(executor);
-   auto endpoint = co_await async_connect(upstream, endpoints);
+   co_await async_connect(upstream, endpoints);
 
    auto [up, down] = co_await (forward(downstream, upstream) && forward(upstream, downstream));
    std::println("forwarded {} upstream and {} downstream", Bytes{up}, Bytes{down});

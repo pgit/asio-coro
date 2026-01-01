@@ -109,15 +109,13 @@ TEST_F(CompletionToken, WHEN_multiple_timers_are_created_with_ranges_THEN_latch_
    constexpr size_t N = 100;
    std::latch latch(N);
    auto timers = rv::iota(0u, N) |
-                 rv::transform(
-                    [&](auto i) -> steady_timer
-                    {
-                       steady_timer timer(executor);
-                       timer.expires_after(i * 1ms);
-                       timer.async_wait([&](error_code) mutable { latch.count_down(); });
-                       return timer;
-                    }) |
-                 ranges::to<std::vector>();
+                 rv::transform([&](auto i) -> steady_timer
+   {
+      steady_timer timer(executor);
+      timer.expires_after(i * 1ms);
+      timer.async_wait([&](error_code) mutable { latch.count_down(); });
+      return timer;
+   }) | ranges::to<std::vector>();
    latch.wait();
 }
 
@@ -180,15 +178,12 @@ TEST_F(CompletionToken, WHEN_timer_is_cancelled_THEN_error_is_returned_as_tuple)
 
 TEST_F(CompletionToken, WHEN_timer_completes_THEN_coroutine_is_resumed)
 {
-   co_spawn(
-      executor,
-      [&]() -> awaitable<void>
-      {
-         steady_timer timer(executor);
-         timer.expires_after(100ms);
-         co_await timer.async_wait();
-      },
-      detached);
+   co_spawn(executor, [&]() -> awaitable<void>
+   {
+      steady_timer timer(executor);
+      timer.expires_after(100ms);
+      co_await timer.async_wait();
+   }, detached);
 }
 
 // =================================================================================================
@@ -196,7 +191,7 @@ TEST_F(CompletionToken, WHEN_timer_completes_THEN_coroutine_is_resumed)
 template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void()) CompletionToken>
 auto no_result(CompletionToken&& token)
 {
-   return boost::asio::async_initiate<CompletionToken, void()>([](auto handler) {}, token);
+   return boost::asio::async_initiate<CompletionToken, void()>([](auto) {}, token);
 }
 
 static_assert(std::is_same_v<decltype(no_result(use_future)), std::future<void>>);
@@ -207,8 +202,7 @@ static_assert(std::is_same_v<decltype(no_result(as_tuple(use_future))), std::fut
 template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code)) CompletionToken>
 auto error_code_only(CompletionToken&& token)
 {
-   return boost::asio::async_initiate<CompletionToken, void(error_code)>([](auto handler) {},
-                                                                         token);
+   return boost::asio::async_initiate<CompletionToken, void(error_code)>([](auto) {}, token);
 }
 
 static_assert(std::is_same_v<decltype(error_code_only(use_future)), std::future<void>>);
@@ -221,8 +215,8 @@ static_assert(std::is_same_v<decltype(error_code_only(deferred)(use_future)), st
 template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t)) CompletionToken>
 auto error_and_size(CompletionToken&& token)
 {
-   return boost::asio::async_initiate<CompletionToken, void(error_code, size_t)>(
-      [](auto handler) {}, token);
+   return boost::asio::async_initiate<CompletionToken, void(error_code, size_t)>([](auto) {},
+                                                                                 token);
 }
 
 static_assert(std::is_same_v<decltype(error_and_size(use_future)), std::future<size_t>>);
@@ -232,8 +226,8 @@ static_assert(std::is_same_v<decltype(error_and_size(use_future)), std::future<s
 template <BOOST_ASIO_COMPLETION_TOKEN_FOR(void(error_code, size_t, int)) CompletionToken>
 auto error_and_size_and_int(CompletionToken&& token)
 {
-   return boost::asio::async_initiate<CompletionToken, void(error_code, size_t, int)>(
-      [](auto handler) {}, token);
+   return boost::asio::async_initiate<CompletionToken, void(error_code, size_t, int)>([](auto) {},
+                                                                                      token);
 }
 
 static_assert(std::is_same_v<decltype(error_and_size_and_int(use_future)),

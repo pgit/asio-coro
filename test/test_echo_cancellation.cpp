@@ -1,6 +1,5 @@
 #include "asio-coro.hpp"
 #include "literals.hpp"
-#include "run.hpp"
 #include "send.hpp"
 
 #include <gmock/gmock.h>
@@ -177,7 +176,7 @@ awaitable<void> server(tcp::acceptor acceptor)
    while (!sessions.empty())
    {
       co_await this_coro::reset_cancellation_state(enable_terminal_cancellation());
-      auto [ec] = co_await channel.async_receive(as_tuple);
+      std::ignore = co_await channel.async_receive(as_tuple);
       if (cs.cancelled() != cancellation_type::none)
       {
          std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());

@@ -113,7 +113,7 @@ awaitable<void> log_cancellation(T&& task)
  */
 TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resumed)
 {
-   co_spawn(executor, [this]() -> awaitable<void> // |0*1|
+   co_spawn(executor, []() -> awaitable<void> // |0*1|
    {
       // |>1|
       auto ex = co_await this_coro::executor;
@@ -164,7 +164,7 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resum
 //
 TEST_F(Cancellation, WHEN_task_is_cancelled_THEN_is_not_resumed)
 {
-   test = [this]() -> awaitable<void>
+   test = []() -> awaitable<void>
    {
       auto ex = co_await this_coro::executor;
       auto promise = std::make_optional(co_spawn(ex,

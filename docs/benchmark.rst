@@ -15,3 +15,5 @@ The client is run with 10 concurrent connections.
 .. image:: images/benchmark-c10-d10.png
 
 .. note:: There is no **echo_sync** here, as it supports only a single connection.
+
+.. warning:: Don't interpret too much into these benchmarks: A real server would do much more than just echoing everything back. The low-level I/O work is likely to be dominated by parsing or some computation.

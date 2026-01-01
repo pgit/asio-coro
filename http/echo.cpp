@@ -24,7 +24,7 @@ awaitable<void> session(tcp::socket socket)
       // prepare request and read headers
       //
       http::request_parser<http::buffer_body> parser;
-      auto n = co_await http::async_read_header(socket, buffer, parser);
+      co_await http::async_read_header(socket, buffer, parser);
 
       auto& req = parser.get();
 
@@ -53,9 +53,9 @@ awaitable<void> session(tcp::socket socket)
       parser.body_limit(boost::none);
       sr.limit(0);
 
+      std::array<char, 64_k> data;
       while (!sr.is_done())
       {
-         std::array<char, 64_k> data;
          parser.get().body().data = data.data();
          parser.get().body().size = data.size();
 

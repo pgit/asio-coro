@@ -36,7 +36,7 @@ protected:
 
 TEST_F(Process, WHEN_process_succeeds_THEN_returns_zero_exit_code)
 {
-   co_spawn(executor, [this] -> awaitable<ExitCode>
+   co_spawn(executor, [] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       bp::process child(executor, "/usr/bin/true", {});
@@ -48,7 +48,7 @@ TEST_F(Process, WHEN_process_succeeds_THEN_returns_zero_exit_code)
 
 TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 {
-   co_spawn(executor, [this] -> awaitable<ExitCode>
+   co_spawn(executor, [] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       bp::process child(executor, "/usr/bin/false", {});
@@ -60,7 +60,7 @@ TEST_F(Process, WHEN_process_fails_THEN_returns_non_zero_exit_code)
 
 TEST_F(Process, WHEN_path_does_not_exist_THEN_raises_no_such_file_or_directory)
 {
-   co_spawn(executor, [this] -> awaitable<ExitCode>
+   co_spawn(executor, [] -> awaitable<ExitCode>
    {
       auto executor = co_await this_coro::executor;
       bp::process child(executor, "/path/does/not/exist", {});
