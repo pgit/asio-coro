@@ -1,5 +1,6 @@
 #include "asio-coro.hpp"
 #include "literals.hpp"
+#include "run.hpp"
 
 #include <boost/asio/error.hpp>
 #include <boost/program_options.hpp>
@@ -28,8 +29,7 @@ public:
 private:
    /*
     * Write as much data to the socket as possible, until either the configured limit has been
-    * reached or this coroutine is cancelled. We don't care about what exactly is written, so
-    * that is just an uninitialized vector.
+    * reached or this coroutine is cancelled.
     */
    awaitable<size_t> write_loop(tcp::socket& socket)
    {
@@ -37,13 +37,13 @@ private:
       size_t size = config_.size ? *config_.size : std::numeric_limits<size_t>::max();
       try
       {
-         auto data = std::views::iota(uint8_t{0}) | std::views::take(config_.buffer_size) | //
-                     std::ranges::to<std::vector>(); // 0..255,0..255,...
+         const auto data = std::views::iota(uint8_t{0}) | // 0..255, 0..255, ...
+                           std::views::take(config_.buffer_size) | //
+                           std::ranges::to<std::vector>();
          while (total < size)
          {
-            size_t n = std::min(size - n, data.size());
-            co_await async_write(socket, buffer(data, n));
-            total += n;
+            const size_t n = std::min(total - size, data.size());
+            total += co_await socket.async_write_some(buffer(data, n));
          }
       }
       catch (system_error& ex)
@@ -99,14 +99,24 @@ public:
       auto executor = co_await this_coro::executor;
       tcp::resolver resolver(executor);
 
-      // std::println("resolving {}:{} ...", host, port);
-      auto flags = ip::tcp::resolver::numeric_service;
-      auto endpoints = co_await resolver.async_resolve(host, std::to_string(port), flags);
-
+      ip::tcp::resolver::results_type endpoints;
+      boost::system::error_code ec;
+      if (auto addr = ip::make_address(host, ec); !ec)
+      {
+         auto ep = ip::tcp::endpoint{addr, port};
+         endpoints = ip::tcp::resolver::results_type::create(ep, host, std::to_string(port));
+      }
+      else
+      {
+         std::println("resolving {}:{} ...", host, port);
+         auto flags = ip::tcp::resolver::numeric_service;
+         endpoints = co_await resolver.async_resolve(host, std::to_string(port), flags);
+      }
+#if 0 
       auto range = endpoints | std::views::transform([](const auto& x)
       { return std::format("{}", x.endpoint()); });
-      // auto range = endpoints | std::views::transform([](const auto& x) { return x.endpoint(); });
-      // std::println("endpoints: {}", range);
+      std::println("endpoints: {}", range);
+#endif
 
       ip::tcp::socket socket(executor);
       auto endpoint = co_await asio::async_connect(socket, endpoints);
@@ -126,16 +136,17 @@ public:
 
 struct Config
 {
-   std::string host = "localhost";
+   std::string host = "127.0.0.1";
    uint16_t port = 55555;
    size_t connections = 1;
-   size_t extraThreads = 0;
-   size_t duration = 1;
+   size_t threads = std::thread::hardware_concurrency();
+   double duration = 1;
 };
 
 int main(int argc, char* argv[])
 {
    Config config;
+   bool debug = false;
 
    //
    // Define and parse command line options.
@@ -144,17 +155,22 @@ int main(int argc, char* argv[])
    desc.add_options()("help,h", "produce help message");
    desc.add_options()("host", po::value<std::string>(&config.host)->default_value(config.host),
                       "host to connect to");
-   desc.add_options()("port,p", po::value<uint16_t>(&config.port)->default_value(config.port),
+   desc.add_options()("port,p",
+                      po::value(&config.port)->default_value(config.port)->value_name("PORT"),
                       "port number");
-   desc.add_options()("connections,c",
-                      po::value<size_t>(&config.connections)->default_value(config.connections),
-                      "number of connections");
-   desc.add_options()("extraThreads,t",
-                      po::value<size_t>(&config.extraThreads)->default_value(config.extraThreads),
-                      "number of extra threads");
-   desc.add_options()("duration,d",
-                      po::value<size_t>(&config.duration)->default_value(config.duration),
-                      "number of seconds to run the test before closing the connection");
+   desc.add_options()(
+      "connections,c",
+      po::value(&config.connections)->default_value(config.connections)->value_name("N"),
+      "number of connections");
+   desc.add_options()("threads,t",
+                      po::value(&config.threads)->default_value(config.threads)->value_name("N"),
+                      "number of IO contexts to run in parallel");
+   desc.add_options()(
+      "duration,d",
+      po::value(&config.duration)->default_value(config.duration)->value_name("SECONDS"),
+      "number of seconds to run the test before closing the connection");
+   desc.add_options()("debug", po::bool_switch(&debug),
+                      "enable debug mode (single threaded with additional logging)");
 
    po::variables_map vm;
    try
@@ -164,7 +180,7 @@ int main(int argc, char* argv[])
    }
    catch (const po::error& ex)
    {
-      std::cerr << "Command line error: " << ex.what() << std::endl;
+      std::println(std::cerr, "Command line error: {}", ex.what());
       return 1;
    }
 
@@ -174,49 +190,69 @@ int main(int argc, char* argv[])
       return 1;
    }
 
+   if (config.threads == 0)
+   {
+      std::println("ERROR: number of threads must be at least 1");
+      return 1;
+   }
+
+   if (config.duration < 0.0)
+   {
+      std::println("ERROR: duration must be non-negative");
+      return 1;
+   }
+
+   if (debug)
+   {
+      config.threads = 1;
+      std::println("DEBUG mode enabled");
+   }
+
    //
    // Create IO context with the configured number of concurrent connections.
    //
-   io_context context;
-   any_io_executor executor = context.get_executor();
+   config.threads = std::min(config.threads, config.connections);
+   std::vector<io_context> io_contexts(config.threads);
 
    std::vector<Client> clients;
    clients.reserve(config.connections);
+
    auto futures = std::views::iota(size_t{0}, clients.capacity()) |
-                  std::views::transform([&, executor](size_t) mutable
+                  std::views::transform([&](size_t i) mutable
    {
-      if (config.extraThreads)
-         executor = make_strand(executor);
-      clients.emplace_back(ClientConfig{.duration = 1s * config.duration});
+      auto executor = io_contexts[i % io_contexts.size()].get_executor();
+      auto durationDouble = std::chrono::duration<double>(config.duration);
+      auto duration = duration_cast<steady_clock::duration>(durationDouble);
+      clients.emplace_back(ClientConfig{.duration = duration});
       return co_spawn(executor, clients.back().run(config.host, config.port), as_tuple(use_future));
    }) | std::ranges::to<std::vector>();
 
    //
-   // Finally, run the IO context until there is no pending operation left.
-   // If configured, start a number of extra threads that also run the context.
+   // Finally, run the configured number of IO contexts until there is no pending operation left.
    //
-   auto t0 = steady_clock::now();
+   if (debug)
    {
-      auto threads =
-         std::views::iota(size_t{0}, config.extraThreads) |
-         std::views::transform([&](size_t) { return std::jthread([&]() { context.run(); }); }) |
-         std::ranges::to<std::vector>();
-      context.run();
+      assert(io_contexts.size() == 1);
+      runDebug(io_contexts[0]);
+      exit(0);
    }
-
-   //
-   // Collect results.
-   //
-   size_t total = 0;
-   for (auto& future : futures)
+   else
    {
-      auto [ec, bytes] = future.get();
-      total += bytes;
-      if (ec)
-         std::println("ERROR: {}", what(ec));
-   }
+      auto t0 = steady_clock::now();
+      for (auto& context : io_contexts)
+         std::jthread([&context]() { context.run(); }).detach();
 
-   auto dt = std::max(1ms, floor<milliseconds>(steady_clock::now() - t0));
-   std::println("Total bytes echoed: {} at {} MB/s", Bytes(total),
-                total * 1000 / 1024 / 1024 / dt.count());
+      size_t total = 0;
+      for (auto& future : futures)
+      {
+         auto [ec, bytes] = future.get();
+         total += bytes;
+         if (ec)
+            std::println("ERROR: {}", what(ec));
+      }
+
+      auto dt = std::max(1ms, floor<milliseconds>(steady_clock::now() - t0));
+      std::println("Total bytes echoed: {} at {} MiB/s", Bytes(total),
+                   total * 1000 / 1024 / 1024 / dt.count());
+   }
 }
