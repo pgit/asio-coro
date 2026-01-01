@@ -5,8 +5,8 @@ This is a collection of samples for using C++20 coroutines with [Boost ASIO](htt
 
 ## Slides
 
-<a href="doc/ASIO-CORO - Part I - From Sync to Async to As-Sync.pdf?raw=true" class="image fit">
-   <img src="doc/ASIO-CORO - Part I - From Sync to Async to As-Sync.jpg" alt="ASIO & CORO Part I">
+<a href="docs/ASIO-CORO - Part I - From Sync to Async to As-Sync.pdf?raw=true" class="image fit">
+   <img src="docs/ASIO-CORO - Part I - From Sync to Async to As-Sync.jpg" alt="ASIO & CORO Part I">
 </a>
 
 ## Development Devcontainer
