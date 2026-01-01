@@ -84,9 +84,8 @@ awaitable<void> server(tcp::acceptor acceptor)
             sessions.erase(id);
             std::println("session {} finished, number of active sessions: {}", id, sessions.size());
          };
-         auto promise = co_spawn(ex, std::move(task), use_promise);
 
-         auto [it, _] = sessions.emplace(id, std::move(promise));
+         sessions.emplace(id, co_spawn(ex, std::move(task), use_promise));
          std::println("session {} created, number of active sessions: {}", id, sessions.size());
          ++id;
       }

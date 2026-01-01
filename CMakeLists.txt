@@ -63,11 +63,14 @@ include_directories(include)
 link_libraries(asio_coro)
 
 add_subdirectory(bin)
+add_subdirectory(cancellation)
 add_subdirectory(echo)
 add_subdirectory(http)
+add_subdirectory(issues)
 add_subdirectory(net)
 add_subdirectory(process)
-add_subdirectory(issues)
+add_subdirectory(threading)
+
 add_subdirectory(test)
 
 # --------------------------------------------------------------------------------------------------

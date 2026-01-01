@@ -104,7 +104,7 @@ awaitable<void> server(tcp::acceptor acceptor)
             std::ignore = channel.try_send(error_code{});
          }));
 
-         auto [it, _] = sessions.emplace(id, std::move(signal));
+         sessions.emplace(id, std::move(signal));
          std::println("session {} created, number of active sessions: {}", id, sessions.size());
          ++id;
       }
@@ -156,7 +156,7 @@ awaitable<void> server(tcp::acceptor acceptor)
    while (!sessions.empty())
    {
       co_await this_coro::reset_cancellation_state(enable_terminal_cancellation());
-      auto [ec] = co_await channel.async_receive(as_tuple);
+      std::ignore = co_await channel.async_receive(as_tuple);
       if (cs.cancelled() != cancellation_type::none)
       {
          std::println("forwarding '{}' to {} sessions", cs.cancelled(), sessions.size());
