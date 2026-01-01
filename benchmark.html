@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASIO &amp; CORO documentation &mdash; ASIO &amp; CORO  documentation</title>
+  <title>Benchmarks &mdash; ASIO &amp; CORO  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Form Sync to Async to As-Sync" href="echo.html" /> 
+    <link rel="prev" title="Form Sync to Async to As-Sync" href="echo.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -30,7 +30,7 @@
 
           
           
-          <a href="#" class="icon icon-home">
+          <a href="index.html" class="icon icon-home">
             ASIO & CORO
           </a>
 <div role="search">
@@ -42,9 +42,13 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="echo.html">Form Sync to Async to As-Sync</a></li>
-<li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarks</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Benchmarks</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#single-connection">Single Connection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multiple-connections">Multiple Connections</a></li>
+</ul>
+</li>
 </ul>
 
         </div>
@@ -53,17 +57,17 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="#">ASIO & CORO</a>
+          <a href="index.html">ASIO & CORO</a>
       </nav>
 
       <div class="wy-nav-content">
         <div class="rst-content">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">ASIO &amp; CORO documentation</li>
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Benchmarks</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/benchmark.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -71,41 +75,33 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="asio-coro-documentation">
-<h1>ASIO &amp; CORO documentation<a class="headerlink" href="#asio-coro-documentation" title="Link to this heading"></a></h1>
-<p>Add your content using <code class="docutils literal notranslate"><span class="pre">reStructuredText</span></code> syntax. See the
-<a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html">reStructuredText</a>
-documentation for details.</p>
-<div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="echo.html">Form Sync to Async to As-Sync</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="echo.html#synchronous">Synchronous</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="echo.html#echo-sync-cpp">echo_sync.cpp</a></li>
-<li class="toctree-l3"><a class="reference internal" href="echo.html#synchronous-with-threads">Synchronous (with threads)</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="echo.html#asynchronous">Asynchronous</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="echo.html#echo-async">echo_async</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="echo.html#as-synchronous-coroutines">As-Synchronous (Coroutines)</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarks</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="benchmark.html#single-connection">Single Connection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="benchmark.html#multiple-connections">Multiple Connections</a></li>
-</ul>
-</li>
-</ul>
+  <section id="benchmarks">
+<h1>Benchmarks<a class="headerlink" href="#benchmarks" title="Link to this heading"></a></h1>
+<p>The benchmarks are done with the <code class="docutils literal notranslate"><span class="pre">echo_*</span></code> examples servers. The <code class="docutils literal notranslate"><span class="pre">client</span></code> connects and sends/receives as much data as possible within <strong>10s</strong>. The result is the average <strong>MiB/s</strong> in that time, over all connections.</p>
+<section id="single-connection">
+<h2>Single Connection<a class="headerlink" href="#single-connection" title="Link to this heading"></a></h2>
+<img alt="_images/benchmark-c1-d10.png" src="_images/benchmark-c1-d10.png" />
+</section>
+<section id="multiple-connections">
+<h2>Multiple Connections<a class="headerlink" href="#multiple-connections" title="Link to this heading"></a></h2>
+<p>The client is run with 10 concurrent connections.</p>
+<img alt="_images/benchmark-c10-d10.png" src="_images/benchmark-c10-d10.png" />
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>There is no <strong>echo_sync</strong> here, as it supports only a single connection.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Don’t interpret too much into these benchmarks: A real server would do much more than just echoing everything back. The low-level I/O work is likely to be dominated by parsing or some computation.</p>
+</div>
+</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="echo.html" class="btn btn-neutral float-right" title="Form Sync to Async to As-Sync" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="echo.html" class="btn btn-neutral float-left" title="Form Sync to Async to As-Sync" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>
