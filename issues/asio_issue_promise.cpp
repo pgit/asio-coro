@@ -57,7 +57,7 @@ awaitable<void> subtask(Resource& resource)
    // the cancellation. At that time, the parent coroutine and anything passed as a reference
    // may be invalid.
    //
-   auto ec = co_await timer.async_wait(bind_cancellation_slot(signal.slot(), as_tuple));
+   std::ignore =  co_await timer.async_wait(bind_cancellation_slot(signal.slot(), as_tuple));
    
    //
    // Entering danger zone. We have been cancelled, but decided to ignore this and continue

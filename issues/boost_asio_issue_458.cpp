@@ -12,6 +12,8 @@
  *
  * This issue is still open and present in Boost.ASIO 1.89 as of 2024-11-22. It is not fully clear
  * if this is really a bug or just complex behaviour when mixing different cancellation types.
+ *
+ * \see asio_issue_cancellation.cpp
  */
 #include <boost/asio.hpp>
 #include <boost/asio/awaitable.hpp>

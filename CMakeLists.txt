@@ -67,6 +67,7 @@ add_subdirectory(echo)
 add_subdirectory(http)
 add_subdirectory(net)
 add_subdirectory(process)
+add_subdirectory(issues)
 add_subdirectory(test)
 
 # --------------------------------------------------------------------------------------------------
