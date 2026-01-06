@@ -2,12 +2,36 @@
    "version": "2.0.0",
    "tasks": [
       {
+         "label": "Build Docs (Sphinx)",
+         "type": "shell",
+         "command": "make",
+         "args": [
+            "html"
+         ],
+         "options": {
+            "cwd": "${workspaceFolder}/docs",
+            "env": {
+               "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}"
+            }
+         },
+         "group": {
+            "kind": "build",
+            "isDefault": false
+         },
+         "presentation": {
+            "reveal": "always",
+            "panel": "shared"
+         },
+         "problemMatcher": []
+      },
+      {
          "label": "CMake Build",
          "type": "shell",
-          "command": "cmake",
-          "args": [
-            "--build", "build"
-          ],
+         "command": "cmake",
+         "args": [
+            "--build",
+            "build"
+         ],
          "group": {
             "kind": "build",
             "isDefault": true
@@ -30,8 +54,10 @@
          "type": "shell",
          "command": "cmake",
          "args": [
-            "--build", "build",
-            "--target", "${relativeFileDirname}/${fileBasenameNoExtension}"
+            "--build",
+            "build",
+            "--target",
+            "${relativeFileDirname}/${fileBasenameNoExtension}"
          ],
          "group": {
             "kind": "build",
