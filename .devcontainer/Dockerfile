@@ -6,9 +6,11 @@ FROM docker.io/psedoc/cpp-devcontainer:0.22 AS ci-base
 
 #
 # Install 'ping' used by Process.* tests
+# Install python virtual environment
 #
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
-    apt-get -y install iputils-ping tmux btop nghttp2 && \
+    apt-get -y install iputils-ping tmux btop nghttp2 \
+                       python3-venv && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -21,7 +23,7 @@ RUN wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v${VERSION}
 RUN git clone https://github.com/Tencent/rapidjson.git && \ 
     mv rapidjson/include/* /usr/local/include && \
     rm rapidjson -rf
-    
+
 # --------------------------------------------------------------------------------------------------
 
 #

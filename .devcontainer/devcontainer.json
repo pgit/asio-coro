@@ -41,8 +41,9 @@
 				"usernamehw.errorlens",
 				"vadimcn.vscode-lldb",
 				"xaver.clang-format",
-				"redhat.vscode-yaml"
-			]
+				"redhat.vscode-yaml",
+				"ms-python.python"
+			]		
 		}
 	},
 
@@ -57,6 +58,8 @@
 		"source=cpp-devcontainer-bashhistory,target=/commandhistory,type=volume"
 	],
 
+	"postCreateCommand": "python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -r requirements.txt || true",
+	
 	// Comment out this line to run as root instead.
 	"remoteUser": "vscode",
 	"remoteEnv": {
