@@ -12,7 +12,7 @@ Documentation
 Boost ASIO Documentation
 ------------------------
 
-- 🟩 `C++20 Examples <https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/examples/cpp20_examples.html>`_
+- 🟩 `C++20 Examples <https://www.boost.org/doc/libs/latest/doc/html/boost_asio/examples/cpp20_examples.html>`_
 - 🟥 `P2444r0 - The Asio asynchronous model (PDF) <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2444r0.pdf>`_
 - 🟥 `Requirements on asynchronous operations <https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/asynchronous_operations.html>`_
 

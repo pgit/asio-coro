@@ -1,9 +1,9 @@
 ## Documentation
 
 ### Boost ASIO Documentation
-* 🟩 [C++20 Examples](https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/examples/cpp20_examples.html)
+* 🟩 [C++20 Examples](https://www.boost.org/doc/libs/latest/doc/html/boost_asio/examples/cpp20_examples.html)
 * 🟥 [P2444r0 - The Asio asynchronous model (PDF)](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2444r0.pdf)
-* 🟥 [Requirements on asynchronous operations](https://www.boost.org/doc/libs/1_89_0/doc/html/boost_asio/reference/asynchronous_operations.html)
+* 🟥 [Requirements on asynchronous operations](https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/asynchronous_operations.html)
 
 ### Blogs
 * 🟩 [Andrzej Krzemieński - Event-driven flows](https://akrzemi1.wordpress.com/2025/11/16/event-driven-flows/)
