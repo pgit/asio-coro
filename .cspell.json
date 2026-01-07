@@ -4,9 +4,9 @@
         "ASIO",
         "bashhistory",
         "btop",
-        "Buildx",
         "commandhistory",
         "coro",
+        "Eisenlohr",
         "endforeach",
         "EPOLL",
         "fsanitize",
@@ -24,7 +24,9 @@
         "liburing",
         "lldb",
         "lldbinit",
+        "Mindmap",
         "mkdocs",
+        "nghttp",
         "noninteractive",
         "Nullary",
         "nullglob",
@@ -33,6 +35,7 @@
         "socat",
         "stdlib",
         "TSAN",
-        "uring"
+        "uring",
+        "venv"
     ]
 }

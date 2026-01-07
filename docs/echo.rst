@@ -221,11 +221,9 @@ awaitable primitives. Key points:
       context.run();
    }
 
-
 Notes on choosing an implementation
------------------------------------
+***********************************
 - Start with sync for learning and debugging.
 - Use thread-sync or thread pools for moderate concurrency with simpler synchronous code structure.
 - Prefer async or coro for high concurrency and lower resource usage.
 - Coroutines give clearer, maintainable code compared to callback-based async, at the cost of needing a modern C++ toolchain and coroutine-aware Asio setup.
-

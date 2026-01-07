@@ -16,8 +16,6 @@ After opening the project in the container, press `F7` to compile using CMake. O
 
 After that, you can open a `*.cpp` file. This workspace is configured to use the [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd) plugin for syntax highlighting and indexing. That may take a while to complete, watch the `indexing 1/20` in the status bar. You may have to run the command `clangd: Restart language server` once for it to pick up on changes to `build/compile_commands.json`.
 
-
-
 ## Echo Servers
 There are several implementations of TCP echo servers in this project, for demonstration purposes.
 
