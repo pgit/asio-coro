@@ -37,12 +37,12 @@ add_compile_definitions(BOOST_PROCESS_USE_STD_FS)
 # find boost
 # https://github.com/madmongo1/blog-december-2020/blob/master/CMakeLists.txt
 #
-find_package(Boost 1.88 COMPONENTS thread filesystem process program_options OPTIONAL_COMPONENTS system REQUIRED)
+find_package(Boost 1.88 COMPONENTS thread filesystem process program_options cobalt OPTIONAL_COMPONENTS system REQUIRED)
 find_package(OpenSSL COMPONENTS)
 find_package(Threads)
 
 link_libraries(Threads::Threads)
-link_libraries(Boost::thread Boost::atomic Boost::program_options)
+link_libraries(Boost::thread Boost::atomic Boost::program_options Boost::cobalt)
 
 #
 # range-v3 -- FIXME: needed only for views:chunked(),
@@ -66,6 +66,7 @@ link_libraries(asio_coro)
 
 add_subdirectory(bin)
 add_subdirectory(cancellation)
+add_subdirectory(cobalt)
 add_subdirectory(echo)
 add_subdirectory(http)
 add_subdirectory(issues)
