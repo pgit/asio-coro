@@ -1,0 +1,33 @@
+From f821cc03228c2c94d9d4730bd2ac32538d128a89 Mon Sep 17 00:00:00 2001
+From: Peter Eisenlohr <peter@eisenlohr.org>
+Date: Mon, 19 Jan 2026 20:36:06 +0000
+Subject: [PATCH] Fix #1705: awaiting an experimental::promise with
+ cancel_after doesn't post() completion on cancellation
+
+---
+ include/asio/experimental/promise.hpp   |  4 +++-
+ src/tests/unit/experimental/promise.cpp | 23 +++++++++++++++++++++++
+ 2 files changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/include/asio/experimental/promise.hpp b/include/asio/experimental/promise.hpp
+index 3cb788eff..c76767004 100644
+--- a/include/asio/experimental/promise.hpp
++++ b/include/asio/experimental/promise.hpp
+@@ -161,6 +161,9 @@ private:
+     std::shared_ptr<detail::promise_impl<
+       void(Ts...), Executor, Allocator>> self_;
+ 
++    using executor_type = Executor;
++    executor_type get_executor() const { return self_->get_executor(); }
++
+     template <typename WaitHandler>
+     void operator()(WaitHandler&& handler) const
+     {
+@@ -202,7 +205,6 @@ private:
+               if (auto p = self.lock())
+               {
+                 p->cancel.emit(level);
+-                p->cancel_();
+               }
+             }
+           };

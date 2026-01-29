@@ -24,6 +24,12 @@ RUN git clone https://github.com/Tencent/rapidjson.git && \
     mv rapidjson/include/* /usr/local/include && \
     rm rapidjson -rf
 
+# https://github.com/chriskohlhoff/asio/issues/1705
+# COPY asio-issue-1705.patch /tmp/asio-issue-1705.patch
+# RUN cd /usr/local/include/boost/asio && \
+#     patch -p3 </tmp/asio-issue-1705.patch && \
+#     rm -f /tmp/asio-issue-1705.patch
+
 # --------------------------------------------------------------------------------------------------
 
 #
