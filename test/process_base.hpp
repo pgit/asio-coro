@@ -31,7 +31,7 @@ private:
     * including the trailing incomplete line, if any.
     */
    awaitable<void> log(std::string prefix, readable_pipe& pipe,
-                       std::function<void(std::string_view)> on_output = {});
+                       std::function<void(std::string_view)> handleLine = {});
 
 protected:
    awaitable<void> log_stdout(readable_pipe& pipe)
@@ -72,11 +72,6 @@ protected:
    MOCK_METHOD(void, on_stderr, (std::string_view line), ());
    MOCK_METHOD(void, on_error, (error_code ec), ());
    MOCK_METHOD(void, on_exit, (int exit_code), ());
-
-   auto make_system_error(boost::system::errc::errc_t error)
-   {
-      return boost::system::error_code(error, boost::system::system_category());
-   }
 
 private:
    io_context context;

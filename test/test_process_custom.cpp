@@ -178,7 +178,8 @@ protected:
       }
 
       std::println("execute: waiting for remaining output...");
-      co_await std::move(promise);
+      co_await (std::move(promise)(use_awaitable) || sleep(1s));
+      // co_await std::move(promise)(use_awaitable);  // asio #1705
       std::println("execute: waiting for remaining output... done");
 
       co_return rc;
@@ -252,6 +253,19 @@ TEST_F(ProcessCustom, WHEN_operator_and_times_out_THEN_is_interrupted)
    EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+}
+
+// =================================================================================================
+
+TEST_F(ProcessCustom, WHEN_stdout_is_kept_open_THEN_process_completes_normally)
+{
+   auto script = "(sleep 10)& echo -n STDOUT; echo >&2 -n STDERR";
+   auto coro = execute("/usr/bin/bash", {"-c", script});
+   co_spawn(executor, std::move(coro), cancel_after(500ms, token()));
+
+   EXPECT_CALL(*this, on_stderr("STDERR"));
+   EXPECT_CALL(*this, on_stdout("STDOUT"));
+   EXPECT_CALL(*this, on_exit(0));
 }
 
 // =================================================================================================

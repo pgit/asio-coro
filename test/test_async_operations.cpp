@@ -39,7 +39,7 @@ using DefaultCompletionToken = asio::default_completion_token_t<asio::any_io_exe
 
 // =================================================================================================
 
-/// https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio/example/cpp20/type_erasure/sleep.hpp
+/// https://www.boost.org/doc/libs/latest/doc/html/boost_asio/example/cpp20/type_erasure/sleep.hpp
 /**
  * In this example we are defining an async operation that is a free function. As there is no
  * I/O object that we can get an executor from, we have to pass it explicitly.

@@ -1,5 +1,5 @@
 #include "process_base.hpp"
-#include "asio-coro.hpp"
+
 #include "log.hpp"
 
 #include <boost/asio/experimental/promise.hpp>
@@ -16,67 +16,16 @@
 // =================================================================================================
 
 awaitable<void> ProcessBase::log(std::string prefix, readable_pipe& pipe,
-                                 std::function<void(std::string_view)> on_output)
+                                 std::function<void(std::string_view)> handleLine)
 {
-   std::string buffer;
-   auto print = [&](auto line)
+   co_await ::log(prefix, pipe, [prefix, handleLine = std::move(handleLine)](std::string_view line)
    {
-      // print trailing '…' if there is more data in the buffer after the current line
-      const auto continuation = (line.size() + 1 == buffer.size()) ? "" : "…";
-      std::println("{}: \x1b[32m{}\x1b[0m{}", prefix, line, continuation);
-      if (on_output)
-         on_output(line);
-   };
+      if (line.ends_with('\n'))
+         line.remove_suffix(1);
 
-   using enum cancellation_type;
-#if 1
-   auto filter = terminal | partial;
-   co_await this_coro::reset_cancellation_state([filter](cancellation_type type)
-   {
-      auto filtered = type & filter;
-      if (filtered == none)
-         std::println("FILTER({}): {} -> \x1b[1;31m{}\x1b[0m", filter, type, filtered);
-      else
-         std::println("FILTER({}): {} -> {}", filter, type, filtered);
-      return filtered;
+      std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
+      handleLine(line);
    });
-#else // equivalent
-   co_await this_coro::reset_cancellation_state(enable_partial_cancellation());
-#endif
-
-   auto cs = co_await this_coro::cancellation_state;
-
-   try
-   {
-      for (;;)
-      {
-         // async_read_until() supports terminal and partial, but not total cancellation
-         auto n = co_await async_read_until(pipe, dynamic_buffer(buffer), '\n');
-         print(std::string_view(buffer).substr(0, n - 1));
-         buffer.erase(0, n);
-
-         //
-         // Having a little artificial delay here makes things more interesting for the testcase.
-         // This can easily lead to problems if the log() coroutine is detached, breaking
-         // structured concurrency. We try to provoke that here.
-         //
-         co_await sleep(1ms);
-      }
-   }
-   catch (const system_error& ec)
-   {
-      std::println("{}: {}", prefix, ec.code().message());
-      if (cs.cancelled() != cancellation_type::none)
-         std::println("{}: CANCELLED ({})", prefix, cs.cancelled());
-
-      for (auto line : split_lines(buffer))
-         print(line);
-
-      if (ec.code() == error::eof)
-         co_return;
-
-      throw;
-   }
 }
 
 // =================================================================================================

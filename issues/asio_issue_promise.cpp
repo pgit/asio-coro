@@ -79,7 +79,7 @@ awaitable<void> subtask(Resource& resource)
 #endif
 }
 
-awaitable<void> task()
+awaitable<void> cancel_promise()
 {
    Resource resource;
    auto promise = co_spawn(co_await this_coro::executor, subtask(resource), use_promise);
@@ -92,6 +92,6 @@ awaitable<void> task()
 int main()
 {
    boost::asio::io_context context;
-   co_spawn(context.get_executor(), task() && task(), detached); // start two tasks() in a group
+   co_spawn(context.get_executor(), cancel_promise() && cancel_promise(), detached); // start two tasks() in a group
    context.run();
 }

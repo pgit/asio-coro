@@ -92,6 +92,13 @@ constexpr auto log_exception(std::string prefix)
    };
 }
 
+inline auto make_system_error(boost::system::errc::errc_t error)
+{
+   return boost::system::error_code(error, boost::system::system_category());
+}
+
+// =================================================================================================
+
 inline awaitable<void> yield() { co_await post(co_await this_coro::executor); }
 
 inline awaitable<void> sleep(steady_timer::duration timeout)
@@ -99,6 +106,22 @@ inline awaitable<void> sleep(steady_timer::duration timeout)
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(timeout);
    co_await timer.async_wait();
+}
+
+// =================================================================================================
+
+inline static bool isCancelled(cancellation_state& state,
+                               cancellation_type mask = cancellation_type::all)
+{
+   return (state.cancelled() & mask) != cancellation_type::none;
+}
+
+// =================================================================================================
+
+template <typename Buffer>
+constexpr std::string_view make_string_view(const Buffer& buffer)
+{
+   return std::string_view(static_cast<const char*>(buffer.data()), buffer.size());
 }
 
 // =================================================================================================
@@ -117,19 +140,19 @@ concept TestConcept = requires(F f, tcp::socket sock) {
 
 namespace asio_coro_detail
 {
-   template <typename T>
-   struct is_awaitable_impl : std::false_type
-   {
-   };
+template <typename T>
+struct is_awaitable_impl : std::false_type
+{
+};
 
-   template <typename R>
-   struct is_awaitable_impl<asio::awaitable<R>> : std::true_type
-   {
-   };
+template <typename R>
+struct is_awaitable_impl<asio::awaitable<R>> : std::true_type
+{
+};
 
-   template <typename T>
-   inline constexpr bool is_awaitable_v = is_awaitable_impl<std::remove_cvref_t<T>>::value;
-}
+template <typename T>
+inline constexpr bool is_awaitable_v = is_awaitable_impl<std::remove_cvref_t<T>>::value;
+} // namespace asio_coro_detail
 
 /**
  * Concept: a type that is an `asio::awaitable<...>` (after removing cv/ref).

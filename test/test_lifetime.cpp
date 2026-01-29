@@ -206,8 +206,6 @@ TEST(Lifetime, DISABLED_WHEN_coroutine_holds_lock_across_suspension_point_THEN_l
       },
       detached);
    context.run();
-
-   std::expected<size_t, boost::system::system_error> test;
 }
 
 // =================================================================================================

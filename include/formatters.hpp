@@ -106,9 +106,15 @@ struct std::formatter<asio::cancellation_type> : std::formatter<std::string_view
          }
       };
 
+#if 0
+      append_if(terminal, "\x1b[1;36mterminal\x1b[0m");
+      append_if(partial, "\x1b[1;34mpartial\x1b[0m");
+      append_if(total, "\x1b[34mtotal\x1b[0m");
+#else
       append_if(terminal, "terminal");
       append_if(partial, "partial");
       append_if(total, "total");
+#endif
 
       if (type != none)
          std::format_to(ctx.out(), "{}0x{:x}", first ? "" : "|", to_underlying(type));

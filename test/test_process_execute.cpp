@@ -58,9 +58,10 @@ protected:
       //
       // Solution: experimental::use_promise.
       //
-      auto group = experimental::make_parallel_group(co_spawn(executor, log_stdout(out), as_tuple),
-                                                     co_spawn(executor, log_stderr(err), as_tuple));
-      auto promise = group.async_wait(experimental::wait_for_all(), experimental::use_promise);
+      auto promise =
+         experimental::make_parallel_group(co_spawn(executor, log_stdout(out), as_tuple),
+                                           co_spawn(executor, log_stderr(err), as_tuple))
+            .async_wait(experimental::wait_for_all(), experimental::use_promise);
 
       //
       // Use async_execute() from boost::process. It supports all three cancellation types 'total',
@@ -69,32 +70,22 @@ protected:
       //
       auto [ec, exit_status] = co_await bp::async_execute(std::move(child), as_tuple);
       std::println("execute: finished, cancelled={}, rc={}", cs.cancelled(), exit_status);
-      if ((cs.cancelled() & cancellation_type::terminal) != cancellation_type::none)
-      {
 #if BOOST_VERSION < 108900
+      if (isCancelled(cancellation_type::terminal))
          exit_status = SIGKILL; // work around https://github.com/boostorg/process/issues/503
 #endif
-         //
-         // The pipes may still be open if any descendant of the child process has inherited the
-         // writing ends. For example, this happens when running a sleep command inside bash.
-         //
-         // This is normal behaviour, we just have to decide how to handle it. One option, at least
-         // for terminal cancellation, is to just close the reading end so that we don't block.
-         //
-         // Another option is to kill the whole process group (using the PGID), but that requires
-         // 1) a custom initializer for calling setpgid(0, 0) and
-         // 2) ::kill(-PGID) to kill the group instead of only the process.
-         // See the custom process handling tests for an example of this.
-         //
-         error_code ignore;
-         std::ignore = out.close(ignore);
-         std::ignore = err.close(ignore);
-      }
 
-      co_await this_coro::reset_cancellation_state();
       std::println("execute: waiting for remaining output...");
-      co_await std::move(promise);
+      co_await this_coro::reset_cancellation_state();
+      co_await (std::move(promise)(use_awaitable) || sleep(1s));
       std::println("execute: waiting for remaining output... done");
+
+      if (out.is_open())
+         std::println("execute: process didn't close STDOUT!");
+      
+      if (err.is_open())
+         std::println("execute: process didn't close STDERR!");
+
       co_return exit_status;
    }
 };

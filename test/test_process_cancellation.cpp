@@ -26,7 +26,7 @@ class ProcessCancellation : public ProcessBase, public testing::Test
 {
 protected:
    void SetUp() override { EXPECT_CALL(*this, on_stdout(_)).Times(AtLeast(0)); }
-   void TearDown() override { runDebug(); }
+   void TearDown() override { run(); }
 
    using ProcessBase::run;
 
@@ -41,6 +41,7 @@ protected:
       // to different types of signals being sent to the child process.
       //
       // We enable support for 'total' cancellation here, which includes 'partial' and 'terminal'.
+      // All of those cancellation signals get forwarded to the test payload coroutine.
       //
       co_await this_coro::reset_cancellation_state(enable_total_cancellation());
 
@@ -569,6 +570,65 @@ TEST_F(ProcessCancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
+TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
+{
+   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   {
+      co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+
+      auto ex = co_await this_coro::executor;
+      auto promise = co_spawn(ex, log_stdout(out), use_promise);
+
+      auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
+      std::println("execute: exit code {} (ec={})", exit_code, what(ec));
+
+      co_await this_coro::reset_cancellation_state();
+      co_await (std::move(promise)(use_awaitable) || sleep(1s));
+      // co_await std::move(promise)(use_awaitable);  // asio #1705
+
+      EXPECT_TRUE(out.is_open());
+      co_return exit_code;
+   };
+
+   EXPECT_CALL(*this, on_stdout("STDOUT")).Times(1);
+   EXPECT_CALL(*this, on_exit(SIGINT));
+
+   co_spawn(executor, execute("/usr/bin/bash", {"-c", "sleep 10& echo STDOUT; sleep 5"}),
+            cancel_after(150ms, cancellation_type::total, token()));
+}
+
+TEST_F(ProcessCancellation, WHEN_wait_for_pipe_long_enough_THEN_sees_eof)
+{
+   testWithErr = [this](readable_pipe out, readable_pipe err,
+                        bp::process child) -> awaitable<ExitCode>
+   {
+      auto ex = co_await this_coro::executor;
+      auto promise = make_parallel_group(co_spawn(ex, log_stdout(out), deferred),
+                                         co_spawn(ex, log_stderr(err), deferred))
+                        .async_wait(wait_for_all(), use_promise);
+
+      co_await this_coro::throw_if_cancelled(false);
+      auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
+
+      steady_timer timer(ex);
+      co_await std::move(promise)(cancel_after(timer, 1s));
+
+      EXPECT_FALSE(out.is_open());
+      EXPECT_FALSE(err.is_open());
+      co_return exit_code;
+   };
+
+   EXPECT_CALL(*this, on_stderr("STDERR")).Times(1);
+   EXPECT_CALL(*this, on_stdout("STDOUT")).Times(1);
+   EXPECT_CALL(*this, on_stdout("DELAYED")).Times(1);
+   EXPECT_CALL(*this, on_exit(SIGTERM));
+
+   co_spawn(executor,
+            execute("/usr/bin/bash",
+                    {"-c", "(sleep 0.5; echo DELAYED)& echo >&2 STDERR; echo STDOUT; sleep 10"}),
+            cancel_after(150ms, cancellation_type::partial, token()));
+}
+
 // -------------------------------------------------------------------------------------------------
 
 //
@@ -626,9 +686,10 @@ TEST_F(ProcessCancellation, WHEN_parallel_group_operator_THEN_cancellation_fails
    test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       auto cs = co_await this_coro::cancellation_state;
-      // auto awaitable = (async_execute(std::move(child), use_awaitable) && log(out)); // FAILS
+      // This doesn't cancel:
+      // auto awaitable = (async_execute(std::move(child), use_awaitable) && log_stdout(out)); 
       auto awaitable = (async_execute_enable_total(std::move(child)) && log_stdout(out));
-      auto status = co_await (std::move(awaitable));
+      auto status = co_await std::move(awaitable);
       std::println("CANCELLED: {}", cs.cancelled());
       co_return status;
    };

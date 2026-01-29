@@ -1,6 +1,6 @@
 #pragma once
-#include <boost/asio/readable_pipe.hpp>
 #include <boost/asio/awaitable.hpp>
+#include <boost/asio/readable_pipe.hpp>
 
 #include <ranges>
 
@@ -17,3 +17,5 @@ inline auto split_lines(std::string_view lines)
 }
 
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe);
+awaitable<void> log(std::string_view prefix, readable_pipe& pipe,
+                    std::function<void(std::string_view)> handleLine);

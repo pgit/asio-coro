@@ -49,8 +49,6 @@ protected:
 
 // =================================================================================================
 
-
-
 //
 // Wrapp a task to log cancellation events.
 //
@@ -71,8 +69,7 @@ awaitable<void> log_cancellation(T&& task)
       std::println("session cancelled ({}), emitting signal... done", ct);
    });
 
-   co_return co_await co_spawn(ex, std::forward<T>(task),
-                               bind_cancellation_slot(signal.slot()));
+   co_return co_await co_spawn(ex, std::forward<T>(task), bind_cancellation_slot(signal.slot()));
 }
 #else
 #define log_cancellation(task) task
@@ -118,7 +115,9 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resum
       // |>1|
       auto ex = co_await this_coro::executor;
       bool resumed = false;
-      auto promise = std::make_optional(co_spawn(ex, log_cancellation([&]() -> awaitable<void>
+      auto promise = std::make_optional(co_spawn(ex,
+                                                 log_cancellation(
+                                                    [&]() -> awaitable<void>
       {
          // still in |1| -- with use_promise, co_spawn executes the awaitable eagerly!
          std::println("started");
@@ -133,7 +132,8 @@ TEST_F(Cancellation, WHEN_task_is_cancelled_when_already_scheduled_THEN_is_resum
          resumed = true;
          EXPECT_EQ(cs.cancelled(), cancellation_type::terminal);
          co_return; // |<2|
-      }), use_promise));
+      }),
+                                                 use_promise));
 
       promise.reset(); // executes cancellation handler above and prints "cancelled (terminal)"
       EXPECT_FALSE(resumed);
