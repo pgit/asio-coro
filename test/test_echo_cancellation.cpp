@@ -1,6 +1,6 @@
 #include "asio-coro.hpp"
 #include "literals.hpp"
-#include "send.hpp"
+#include "stream_utils.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -379,7 +379,7 @@ TEST_F(EchoCancellation, DISABLED_WHEN_backpressure_THEN_connection_is_closed_im
    test = [](tcp::socket socket) -> awaitable<void>
    {
       auto ex = co_await this_coro::executor;
-      auto [ep, n] = co_await co_spawn(ex, send(socket, rv::iota(0)), cancel_after(1s, as_tuple));
+      auto [ep, n] = co_await co_spawn(ex, write(socket, rv::iota(0)), cancel_after(1s, as_tuple));
       socket.shutdown(socket_base::shutdown_send);
       std::println("echoed {} bytes", n);
       EXPECT_EQ((co_await read_until_eof(socket)).size(), n + 8);
