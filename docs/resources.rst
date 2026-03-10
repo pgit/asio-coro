@@ -28,27 +28,42 @@ Blogs
 Repositories
 ------------
 
-- 🟩 `pgit/asio-coro <https://github.com/pgit/asio-coro>`_
-- 🟨 `anarthal/servertech-chat <https://github.com/anarthal/servertech-chat>`_
+- 🟩 `https://github.com/pgit/asio-coro <https://github.com/pgit/asio-coro>`_
+- 🟨 `https://github.com/anarthal/servertech-chat <https://github.com/anarthal/servertech-chat>`_
+
 
 Playlist
 ========
 
+Introduction
+------------
+- 🟩 `Threads vs Coroutines — Why C++ Has Two Concurrency Models - Conor Spilsbury - CppCon 2025 <https://www.youtube.com/watch?v=txffplpsSzg>`_
+
 Using Asio with C++20 Coroutines
 --------------------------------
 
-- 🟩 `Asynchrony with ASIO and coroutines - Andrzej Krzemieński - code::dive 2022 <https://www.youtube.com/watch?v=0i_pFZSijZc>`_
+- 🟩 `Asynchrony with ASIO and coroutines - Andrzej Krzemieński - code::dive 2022 <https://www.youtube.com/watch?v=0i_pFZSijZc&t=2789s>`_
 - 🟩 `Cancellations in Asio: a tale of coroutines and timeouts - Rubén Pérez Hidalgo (2025-06) <https://www.youtube.com/watch?v=80Zs0WbXAMY>`_
-- 🟨 `C++20 Coroutines, with Boost ASIO in production: Frightening but awesome <https://www.youtube.com/watch?v=RBldGKfLb9I>`_
+- 🟨 `C++20 Coroutines, with Boost ASIO in production: Frightening but awesome <https://www.youtube.com/watch?v=RBldGKfLb9I&t=2375s>`_
 
 Chris Kohlhoff
 --------------
 
-- 🟩 `Talking Async Ep1: Why C++20 is the Awesomest Language for Network Programming <https://www.youtube.com/watch?v=icgnqFM-aY4>`_
-- 🟨 `Talking Async Ep2: Cancellation in depth <https://www.youtube.com/watch?v=hHk5OXlKVFg>`_ (`Cancellation Race Condition <https://www.youtube.com/watch?v=hHk5OXlKVFg&t=484s>`_)
+- 🟩 `Talking Async Ep1: Why C++20 is the Awesomest Language for Network Programming <https://www.youtube.com/watch?v=icgnqFM-aY4&t=2477s>`_
+- 🟨 `Talking Async Ep2: Cancellation in depth <https://www.youtube.com/watch?v=hHk5OXlKVFg&t=3718s>`_
 
 Structured Concurrency
 ----------------------
 
 - 🟨 `Writing Safer Concurrent Code with Coroutines... - Lewis Baker - CppCon 2019 <https://www.youtube.com/watch?v=1Wy5sq3s2rg>`_
 - 🟨 `Structured Concurrency - Sebastiaan Koppe - DConf '22 <https://www.youtube.com/watch?v=hJhNhIeq29U>`_
+
+General
+-------
+- 🟩 `Choose the Right C++ Parallelism Tool | Low-Level vs Async vs Coroutines vs Data Parallel <https://www.youtube.com/watch?v=7a9AP4rD08M>`_
+- 🟥 `std::execution in Asio Codebases: Adopting Senders Without a Rewrite - Robert Leahy - CppCon 2025 <https://www.youtube.com/watch?v=S1FEuyD33yA>`_
+
+Outlook
+-------
+* `C++ Aliance: Capy <https://github.com/cppalliance/capy>`_
+* `Boost Corosio <https://master.corosio.cpp.al/corosio/index.html>`_
