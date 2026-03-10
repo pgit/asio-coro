@@ -1,4 +1,5 @@
 #include <boost/asio.hpp>
+#include <thread>
 
 using namespace boost::asio;
 using ip::tcp;
@@ -24,10 +25,10 @@ int main()
    io_context context;
    co_spawn(context, server({context, {tcp::v6(), 55555}}), detached);
 
-   std::vector<std::thread> threads(std::thread::hardware_concurrency());
-   for (auto& thread : threads)
-      thread = std::thread([&]() { context.run(); });
+   std::vector<std::jthread> threads;
+   threads.reserve(std::thread::hardware_concurrency());
+   for (size_t i = 0; i < threads.capacity(); ++i)
+      threads.emplace_back([&]() { context.run(); });
+   
    context.run();
-   for (auto& thread : threads)
-      thread.join();
 }

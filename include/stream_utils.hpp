@@ -20,8 +20,8 @@ using boost::system::system_error;
 
 /// Writes a contiguous block of memory, as provided by a contiguous range.
 template <AsyncWriteStream Stream, std::ranges::range Range>
-   requires std::ranges::contiguous_range<Range>
-awaitable<size_t> write(Stream& stream, Range range)
+   requires std::ranges::contiguous_range<Range> && (sizeof(std::ranges::range_value_t<Range>) == 1)
+awaitable<size_t> write(Stream& stream, Range&& range)
 {
    auto cs = co_await this_coro::cancellation_state;  
    co_await this_coro::reset_cancellation_state(enable_partial_cancellation());
@@ -37,9 +37,12 @@ awaitable<size_t> write(Stream& stream, Range range)
    co_return n;
 }
 
+// -------------------------------------------------------------------------------------------------
+
 // Writes a non-contiguous range in chunks, copying to a temporary buffer.
 template <AsyncWriteStream Stream, std::ranges::range Range>
-   requires(!std::ranges::contiguous_range<Range>)
+   requires(!std::ranges::contiguous_range<Range>) && 
+            std::convertible_to<std::ranges::range_value_t<Range>, uint8_t>
 awaitable<size_t> write(Stream& request, Range range)
 {
    auto ex = co_await this_coro::executor;
@@ -69,21 +72,21 @@ awaitable<size_t> write(Stream& request, Range range)
 // =================================================================================================
 
 template <AsyncWriteStream Stream, std::ranges::range Range>
-inline awaitable<size_t> write_and_close(Stream stream, Range&& range)
+inline awaitable<size_t> write_and_close(Stream stream, Range range)
 {
    co_await this_coro::reset_cancellation_state(enable_partial_cancellation());
-   auto n = co_await write(stream, std::forward<Range>(range));
+   auto n = co_await write(stream, std::move(range));
    stream.close();
    co_return n;
 }
 
 template <AsyncWriteStream Stream, std::ranges::range Range, typename Period>
-awaitable<size_t> write_and_close(Stream stream, Range&& range, Period timeout)
+awaitable<size_t> write_and_close(Stream stream, Range range, Period timeout)
 {
    auto ex = co_await this_coro::executor;
    co_await this_coro::reset_cancellation_state(enable_partial_cancellation());
    auto n = co_await co_spawn(ex, write(stream, std::forward<Range>(range)), cancel_after(timeout));
-   stream.close();
+   // stream.close();
    co_return n;
 }
 

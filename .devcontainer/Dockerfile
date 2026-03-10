@@ -30,6 +30,16 @@ RUN git clone https://github.com/Tencent/rapidjson.git && \
 #     patch -p3 </tmp/asio-issue-1705.patch && \
 #     rm -f /tmp/asio-issue-1705.patch
 
+RUN git clone https://github.com/cppalliance/capy.git && \
+    cd capy && mkdir -p build && cd build && \
+    cmake .. && make -j $(nproc) install && \
+    cd ../.. && rm -rf capy
+
+RUN git clone https://github.com/cppalliance/corosio.git && \
+    cd corosio && mkdir -p build && cd build && \
+    cmake .. && make -j $(nproc) install && \
+    cd ../.. && rm -rf corosio
+
 # --------------------------------------------------------------------------------------------------
 
 #

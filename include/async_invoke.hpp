@@ -13,27 +13,6 @@ namespace asio = boost::asio;
 // =================================================================================================
 
 /**
- * Binds all arguments to a callable, returning a nullary callable.
- *
- * This utility function takes a callable object \p f and a set of arguments \p args..., and
- * returns a new callable that, when invoked with no arguments, calls \p f with the bound
- * arguments. The bound arguments are stored in a tuple and moved when the returned callable is
- * invoked.
- *
- * This is particularly useful for deferring the execution of a function with specific arguments,
- * such as when posting tasks to an executor.
- */
-template <typename F, typename... Args>
-   requires std::invocable<F, Args...>
-auto bind_all(F&& f, Args&&... args)
-{
-   return [f = std::forward<F>(f),
-           args = std::make_tuple(std::forward<Args>(args)...)]() mutable { //
-      return std::apply(std::move(f), std::move(args));
-   };
-}
-
-/**
  * Asynchronously invokes a callable object on the specified executor and completes with the result.
  *
  * This function template schedules the provided callable \p f with arguments \p args... to be
@@ -44,7 +23,7 @@ auto bind_all(F&& f, Args&&... args)
  * The function integrates with Boost.Asio's asynchronous model, supporting custom executors,
  * allocators, and cancellation slots associated with the completion handler.
  *
- * https://www.boost.org/doc/libs/master/doc/html/boost_asio/reference/asynchronous_operations.html
+ * https://www.boost.org/doc/libs/latest/doc/html/boost_asio/reference/asynchronous_operations.html
  */
 template <BOOST_ASIO_EXECUTION_EXECUTOR Executor, typename F, typename... Args,
           typename CompletionToken,
@@ -95,6 +74,31 @@ auto async_invoke(Executor& executor, F&& f, Args&&... args)
 {
    return async_invoke(executor, CompletionToken(), std::forward<F>(f),
                        std::forward<Args>(args)...);
+}
+
+// =================================================================================================
+
+/**
+ * Binds all arguments to a callable, returning a nullary callable.
+ *
+ * This utility function takes a callable object \p f and a set of arguments \p args..., and
+ * returns a new callable that, when invoked with no arguments, calls \p f with the bound
+ * arguments. The bound arguments are stored in a tuple and moved when the returned callable is
+ * invoked.
+ *
+ * This is particularly useful for deferring the execution of a function with specific arguments,
+ * such as when posting tasks to an executor.
+ *
+ * NOTE: std::bind_all may do just the same
+ */
+template <typename F, typename... Args>
+   requires std::invocable<F, Args...>
+auto bind_all(F&& f, Args&&... args)
+{
+   return [f = std::forward<F>(f),
+           args = std::make_tuple(std::forward<Args>(args)...)]() mutable { //
+      return std::apply(std::move(f), std::move(args));
+   };
 }
 
 // =================================================================================================

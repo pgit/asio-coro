@@ -23,8 +23,8 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
     # add_link_options(-fsanitize=thread)
     
     # address sanitizer
-    # add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
-    # add_link_options(-fsanitize=address)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
 endif()
 add_compile_options(-stdlib=libc++)
 add_link_options(-stdlib=libc++ -lstdc++fs)
@@ -40,6 +40,9 @@ add_compile_definitions(BOOST_PROCESS_USE_STD_FS)
 find_package(Boost 1.88 COMPONENTS thread filesystem process program_options cobalt OPTIONAL_COMPONENTS system REQUIRED)
 find_package(OpenSSL COMPONENTS)
 find_package(Threads)
+
+find_package(boost_capy)
+find_package(boost_corosio)
 
 link_libraries(Threads::Threads)
 link_libraries(Boost::thread Boost::atomic Boost::program_options Boost::cobalt)
@@ -66,6 +69,7 @@ link_libraries(asio_coro)
 
 add_subdirectory(bin)
 add_subdirectory(cancellation)
+add_subdirectory(capy)
 add_subdirectory(cobalt)
 add_subdirectory(echo)
 add_subdirectory(http)

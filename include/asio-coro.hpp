@@ -99,12 +99,19 @@ inline auto make_system_error(boost::system::errc::errc_t error)
 
 // =================================================================================================
 
+/// Does nothing, schedules for continuation immediately. Same as `sleep(0s)`.
 inline awaitable<void> yield() { co_await post(co_await this_coro::executor); }
 
+/**
+ * Sleep for the given duration, then complete.
+ *
+ * Supports 'total', 'partial' and 'terminal' cancellation.
+ */
 inline awaitable<void> sleep(steady_timer::duration timeout)
 {
    steady_timer timer(co_await this_coro::executor);
    timer.expires_after(timeout);
+   co_await this_coro::reset_cancellation_state(enable_total_cancellation());
    co_await timer.async_wait();
 }
 

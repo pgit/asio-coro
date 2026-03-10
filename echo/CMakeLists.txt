@@ -7,3 +7,7 @@ endforeach()
 # TEST: Use io_uring for 'echo_coro'.
 # target_compile_definitions(echo_coro PRIVATE BOOST_ASIO_HAS_IO_URING BOOST_ASIO_DISABLE_EPOLL)
 # target_link_libraries(echo_coro PRIVATE uring)
+
+target_link_libraries(echo_corosio PRIVATE boost_corosio boost_capy)
+target_link_libraries(echo_corosio_threaded PRIVATE boost_corosio boost_capy)
+
