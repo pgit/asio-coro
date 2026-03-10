@@ -35,4 +35,7 @@
       }
    ],
    "json.validate.enable": true,
+   "esbonio.sphinx.pythonCommand": {
+      "command": [".venv/bin/python"]
+   }
 }

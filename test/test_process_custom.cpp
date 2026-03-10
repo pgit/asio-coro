@@ -219,7 +219,7 @@ TEST_F(ProcessCustom, WHEN_operator_or_times_out_THEN_is_interrupted_and)
             [token = token()](const std::exception_ptr& ep,
                               std::variant<ExitCode, std::monostate> variant)
    {
-      EXPECT_NO_THROW(std::get<std::monostate>(variant));
+      EXPECT_NO_THROW(std::ignore = std::get<std::monostate>(variant));
       token(ep, 0);
    });
 

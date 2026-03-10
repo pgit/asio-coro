@@ -34,6 +34,11 @@ private:
                        std::function<void(std::string_view)> handleLine = {});
 
 protected:
+   awaitable<void> log_stdout(readable_pipe&& pipe)
+   {
+      co_return co_await log("STDOUT", pipe, [this](std::string_view line) { on_stdout(line); });
+   }
+
    awaitable<void> log_stdout(readable_pipe& pipe)
    {
       return log("STDOUT", pipe, [this](std::string_view line) { on_stdout(line); });

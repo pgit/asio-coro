@@ -6,6 +6,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include "asio-coro.hpp"
 
 using namespace boost::asio;
 namespace bp = boost::process::v2;
@@ -17,6 +18,7 @@ using namespace std::chrono_literals;
 
 // =================================================================================================
 
+/// Simple fixture holding an IO context only. Testcases need to call run() manually.
 class Fixture : public testing::Test
 {
    io_context context;
@@ -59,7 +61,7 @@ TEST_F(Fixture, WHEN_process_is_cancelled_THEN_exception_is_thrown)
    bp::process child(executor, "/usr/bin/sleep", {"10"});
    auto future = child.async_wait(cancel_after(50ms, use_future));
    run();
-   EXPECT_THROW(future.get(), system_error);
+   EXPECT_THROW(std::ignore = future.get(), system_error);
 }
 
 TEST_F(Fixture, WHEN_process_is_cancelled_THEN_error_is_reported_as_tuple)

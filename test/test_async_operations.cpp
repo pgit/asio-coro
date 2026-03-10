@@ -155,7 +155,7 @@ TEST_F(ComposedAny, WHEN_no_default_op_finishes_THEN_yields_nothing)
    // auto async_promise = async_complete_no_default(boost::asio::experimental::use_promise);
    auto future = async_complete_no_default(bind_executor(context.get_executor(), use_future));
    context.run();
-   EXPECT_NO_THROW(future.get());
+   EXPECT_NO_THROW(std::ignore = future.get());
 }
 
 // =================================================================================================

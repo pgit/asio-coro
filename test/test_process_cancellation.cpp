@@ -75,16 +75,18 @@ protected:
 // =================================================================================================
 
 //
-// PING ::1(::1) 56 data bytes
-// 64 bytes from ::1: icmp_seq=1 ttl=64 time=0.019 ms
-// 64 bytes from ::1: icmp_seq=2 ttl=64 time=0.083 ms
-// 64 bytes from ::1: icmp_seq=3 ttl=64 time=0.058 ms
-// 64 bytes from ::1: icmp_seq=4 ttl=64 time=0.074 ms
-// 64 bytes from ::1: icmp_seq=5 ttl=64 time=0.082 ms
+// :: code-block::
 //
-// --- ::1 ping statistics ---
-// 5 packets transmitted, 5 received, 0% packet loss, time 414ms
-// rtt min/avg/max/mdev = 0.019/0.063/0.083/0.023 ms
+//    PING ::1(::1) 56 data bytes
+//    64 bytes from ::1: icmp_seq=1 ttl=64 time=0.019 ms
+//    64 bytes from ::1: icmp_seq=2 ttl=64 time=0.083 ms
+//    64 bytes from ::1: icmp_seq=3 ttl=64 time=0.058 ms
+//    64 bytes from ::1: icmp_seq=4 ttl=64 time=0.074 ms
+//    64 bytes from ::1: icmp_seq=5 ttl=64 time=0.082 ms
+//
+//    --- ::1 ping statistics ---
+//    5 packets transmitted, 5 received, 0% packet loss, time 414ms
+//    rtt min/avg/max/mdev = 0.019/0.063/0.083/0.023 ms
 //
 TEST_F(ProcessCancellation, Ping)
 {
@@ -329,7 +331,7 @@ TEST_F(ProcessCancellation, CancelFixture)
    test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
    {
       co_await log_stdout(out);
-      co_return co_await child.async_wait(); // will not be executed on timeout
+      co_return co_await child.async_wait();
    };
 
    EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
@@ -430,7 +432,7 @@ TEST_F(ProcessCancellation,
 // -------------------------------------------------------------------------------------------------
 
 //
-// Resetting the cancellation state also allows us to re-start the log() coroutine.
+// Resetting the cancellation state also allows us to re-start the `log()` coroutine.
 //
 TEST_F(ProcessCancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
 {
@@ -455,17 +457,19 @@ TEST_F(ProcessCancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_com
 // operation in a state that cannot be resumed. What this means for each specific operation
 // is very different.
 //
-// bp::async_execute() maps the cancellation types to the following operations on the process:
+// `bp::async_execute()` maps the cancellation types to the following operations on the process:
 //
-//  cancellation_type  results in      equivalent to sending
-// ==========================================================
-//   terminal          terminate()     SIGKILL
-//   partial           request_exit()  SIGTERM
-//   total             interrupt()     SIGINT
+// +-------------------+------------------+-----------------------------+
+// | cancellation_type | results in       | equivalent to sending       |
+// +===================+==================+=============================+
+// | terminal          | terminate()      | SIGKILL                     |
+// +-------------------+------------------+-----------------------------+
+// | partial           | request_exit()   | SIGTERM                     |
+// +-------------------+------------------+-----------------------------+
+// | total             | interrupt()      | SIGINT                      |
+// +-------------------+------------------+-----------------------------+
 //
-
-//
-// If we want cancellation to arrive at async_execute() instead of log(), we could try to
+// If we want cancellation to arrive at `async_execute()` instead of `log()`, we could try to
 // spawn the logging into the background...
 //
 TEST_F(ProcessCancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_pipe) // UB
@@ -476,7 +480,7 @@ TEST_F(ProcessCancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading
       co_return co_await async_execute(std::move(child));
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -486,19 +490,21 @@ TEST_F(ProcessCancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading
 
 //
 // The use_promise completion token has two very interesting properties:
-// 1) Similar to the 'detached' completion token, the operation is started eagerly.
+//
+// 1) Similar to the `detached` completion token, the operation is started eagerly.
 // 2) When the promise is destroyed, the operation is cancelled.
 //
 // This means tht we can use it to help with 'structured concurrency'.
 //
-// Caveat: Cancelling the operation is not equal to waiting for it's completion: If the
-//         async operation catches the cancellation errors and decides to continue anyway,
-//         that will happen later, after the parent frame has been destroyed.
+// .. warning::
+//    Cancelling an operation is not equivalent to waiting for its completion: If the
+//    async operation catches the cancellation errors and decides to continue anyway,
+//    that will happen later, after the parent frame has been destroyed.
 //
-//         Because of this, it is good practice to react to cancellation immediately.
-//         For async shutdown, non-terminal cancellation types should be used.
+//    Because of this, it is good practice to react to cancellation immediately.
+//    For async shutdown, non-terminal cancellation types should be used.
 //
-//         There is no such thing as an "async destructor".
+//    There is no such thing as an "async destructor".
 //
 TEST_F(ProcessCancellation, WHEN_log_uses_promise_THEN_is_started_immediately)
 {
@@ -549,6 +555,7 @@ TEST_F(ProcessCancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destructi
 
 //
 // If we actually wait on the promise, finally, we have what we want:
+//
 // 1) The process is cancelled using SIGINT
 // 2) We can read the remaining output
 // 3) Exit is handled gracefully
@@ -564,12 +571,19 @@ TEST_F(ProcessCancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
       co_return exit_code;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
 
+//
+// When spawning external processes, we need to be ready to handle "leaked file descriptors":
+// Even though the process has exited, some sub-process may still keep STDOUT, STDERR or others
+// open, keeping `log_stdout` alive.
+//
+// So, when waiting for the logging coroutine to finish, apply a timeout.
+//
 TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
 {
    test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
@@ -584,7 +598,6 @@ TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
 
       co_await this_coro::reset_cancellation_state();
       co_await (std::move(promise)(use_awaitable) || sleep(1s));
-      // co_await std::move(promise)(use_awaitable);  // asio #1705
 
       EXPECT_TRUE(out.is_open());
       co_return exit_code;
@@ -597,6 +610,9 @@ TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
             cancel_after(150ms, cancellation_type::total, token()));
 }
 
+//
+// If the file descriptors are closed within the timeout (here: 1s), we can still see the EOF.
+//
 TEST_F(ProcessCancellation, WHEN_wait_for_pipe_long_enough_THEN_sees_eof)
 {
    testWithErr = [this](readable_pipe out, readable_pipe err,
@@ -651,8 +667,8 @@ TEST_F(ProcessCancellation, WHEN_parallel_group_is_cancelled_total_THEN_logging_
       co_return exit_code;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
-   EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
+   EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1); // ping has exited gracefully
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
 }
@@ -687,14 +703,14 @@ TEST_F(ProcessCancellation, WHEN_parallel_group_operator_THEN_cancellation_fails
    {
       auto cs = co_await this_coro::cancellation_state;
       // This doesn't cancel:
-      // auto awaitable = (async_execute(std::move(child), use_awaitable) && log_stdout(out)); 
+      // auto awaitable = (async_execute(std::move(child), use_awaitable) && log_stdout(out));
       auto awaitable = (async_execute_enable_total(std::move(child)) && log_stdout(out));
       auto status = co_await std::move(awaitable);
       std::println("CANCELLED: {}", cs.cancelled());
       co_return status;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -722,7 +738,7 @@ TEST_F(ProcessCancellation, WHEN_redirect_cancellation_slot_manually_THEN_output
       co_return status;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));

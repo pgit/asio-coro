@@ -2,7 +2,7 @@
 # https://github.com/microsoft/vscode-dev-containers/tree/main/containers/debian
 # https://github.com/pgit/cpp-devcontainer
 #
-FROM docker.io/psedoc/cpp-devcontainer:0.23 AS ci-base
+FROM docker.io/psedoc/cpp-devcontainer:testing AS ci-base
 
 #
 # Install 'ping' used by Process.* tests
@@ -14,7 +14,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-ARG VERSION=1.4.3
+ARG VERSION=1.5.0
 RUN wget https://github.com/danielaparker/jsoncons/archive/refs/tags/v${VERSION}.tar.gz && \
     tar xzvf v${VERSION}.tar.gz && \
     mv jsoncons-${VERSION}/include/* /usr/local/include && \

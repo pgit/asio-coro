@@ -34,7 +34,9 @@ awaitable<void> cancel_promise(std::string variant)
 
    if (variant == "cancel_after")
       co_await std::move(promise)(as_tuple(cancel_after(timer, 1ms)));
-   else if (variant == "parallel group")
+   else if (variant == "co_spawn")
+      co_await co_spawn(ex, std::move(promise)(use_awaitable), as_tuple(cancel_after(timer, 1ms)));
+   else if (variant == "cancel_after")
       co_await (std::move(promise)(use_awaitable) || timer.async_wait(use_awaitable));
 
    std::println("{} awaiting promise... STILL THERE", variant);
@@ -47,6 +49,8 @@ int main()
    boost::asio::io_context context;
    co_spawn(context, cancel_promise("cancel_after"),
             [](const std::exception_ptr&) { std::println("cancel_after completed"); });
+   co_spawn(context, cancel_promise("co_spawn"),
+            [](const std::exception_ptr&) { std::println("co_spawn completed"); });
    co_spawn(context, cancel_promise("parallel group"),
             [](const std::exception_ptr&) { std::println("parallel group completed"); });
    context.run();

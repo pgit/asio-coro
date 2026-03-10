@@ -28,6 +28,8 @@ using boost::system::system_error;
 awaitable<void> log(std::string_view prefix, readable_pipe& pipe)
 {
    co_await log(prefix, pipe, [prefix](std::string_view line) { //
+      if (line.ends_with('\n'))
+         line.remove_suffix(1);
       std::println("{}: \x1b[32m{}\x1b[0m", prefix, line);
    });
 }

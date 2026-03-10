@@ -7,10 +7,10 @@
 // Official repository: https://github.com/cppalliance/corosio
 //
 
-#include <boost/corosio/tcp_server.hpp>
-#include <boost/capy/task.hpp>
 #include <boost/capy/buffers.hpp>
+#include <boost/capy/task.hpp>
 #include <boost/capy/write.hpp>
+#include <boost/corosio/tcp_server.hpp>
 
 #include <cstdlib>
 #include <iostream>
@@ -21,139 +21,104 @@ namespace capy = boost::capy;
 
 class echo_worker : public corosio::tcp_server::worker_base
 {
-    corosio::io_context& ctx_;
-    corosio::tcp_socket sock_;
-    std::string buf_;
+   corosio::io_context& ctx_;
+   corosio::tcp_socket sock_;
+   std::string buf_;
 
 public:
-    explicit echo_worker(corosio::io_context& ctx)
-        : ctx_(ctx)
-        , sock_(ctx)
-    {
-        buf_.reserve(4096);
-    }
+   explicit echo_worker(corosio::io_context& ctx) : ctx_(ctx), sock_(ctx) { buf_.reserve(4096); }
 
-    corosio::tcp_socket& socket() override
-    {
-        return sock_;
-    }
+   corosio::tcp_socket& socket() override { return sock_; }
 
-    void run(corosio::tcp_server::launcher launch) override
-    {
-        launch(ctx_.get_executor(), do_session());
-    }
+   void run(corosio::tcp_server::launcher launch) override
+   {
+      launch(ctx_.get_executor(), do_session());
+   }
 
+   capy::task<> do_session()
+   {
+      std::array<char, 64 * 1024> data;
+      for (;;)
+      {
+         auto [ec, n] = co_await sock_.read_some(capy::mutable_buffer(data.data(), data.size()));
+         if (ec)
+            break;
 
-
-    capy::task<> do_session()
-    {
-#if 1        
-        std::array<char, 64 * 1024> data;
-        for (;;)
-        {
-            auto [ec, n] = co_await sock_.read_some(capy::mutable_buffer(data.data(), data.size()));
-            if (ec)
-                break;
-            auto [wec, wn] = co_await capy::write(sock_, capy::const_buffer(data.data(), n));
-            if (wec)
-                break;
-        }  
-#else
-        for (;;)
-        {
-            buf_.resize(4096);
-
-            // Read some data
-            auto [ec, n] = co_await sock_.read_some(
-                capy::mutable_buffer(buf_.data(), buf_.size()));
-
-            if (ec)
-                break;
-
-            buf_.resize(n);
-
-            // Echo it back
-            auto [wec, wn] = co_await capy::write(
-                sock_, capy::const_buffer(buf_.data(), buf_.size()));
-
-            if (wec)
-                break;
-        }
-#endif
-        sock_.close();
-    }
+         auto [wec, wn] = co_await capy::write(sock_, capy::const_buffer(data.data(), n));
+         if (wec)
+            break;
+      }
+      
+      sock_.close();
+   }
 };
 
-inline auto
-make_echo_workers(corosio::io_context& ctx, int n)
+inline auto make_echo_workers(corosio::io_context& ctx, int n)
 {
-    std::vector<std::unique_ptr<corosio::tcp_server::worker_base>> v;
-    v.reserve(n);
-    for (int i = 0; i < n; ++i)
-        v.push_back(std::make_unique<echo_worker>(ctx));
-    return v;
+   std::vector<std::unique_ptr<corosio::tcp_server::worker_base>> v;
+   v.reserve(n);
+   for (int i = 0; i < n; ++i)
+      v.push_back(std::make_unique<echo_worker>(ctx));
+   return v;
 }
 
 class echo_server : public corosio::tcp_server
 {
 public:
-    echo_server(corosio::io_context& ctx, int max_workers)
-        : tcp_server(ctx, ctx.get_executor())
-    {
-        set_workers(make_echo_workers(ctx, max_workers));
-    }
+   echo_server(corosio::io_context& ctx, int max_workers) : tcp_server(ctx, ctx.get_executor())
+   {
+      set_workers(make_echo_workers(ctx, max_workers));
+   }
 };
 
 int main(int argc, char* argv[])
 {
-    if (argc != 3)
-    {
-        std::cerr <<
-            "Usage: echo_server <port> <max-workers>\n"
-            "Example:\n"
-            "    echo_server 8080 10\n";
-        return EXIT_FAILURE;
-    }
+   if (argc != 3)
+   {
+      std::cerr << "Usage: echo_server <port> <max-workers>\n"
+                   "Example:\n"
+                   "    echo_server 8080 10\n";
+      return EXIT_FAILURE;
+   }
 
-    // Parse port
-    int port_int = std::atoi(argv[1]);
-    if (port_int <= 0 || port_int > 65535)
-    {
-        std::cerr << "Invalid port: " << argv[1] << "\n";
-        return EXIT_FAILURE;
-    }
-    auto port = static_cast<std::uint16_t>(port_int);
+   // Parse port
+   int port_int = std::atoi(argv[1]);
+   if (port_int <= 0 || port_int > 65535)
+   {
+      std::cerr << "Invalid port: " << argv[1] << "\n";
+      return EXIT_FAILURE;
+   }
+   auto port = static_cast<std::uint16_t>(port_int);
 
-    // Parse max workers
-    int max_workers = std::atoi(argv[2]);
-    if (max_workers <= 0)
-    {
-        std::cerr << "Invalid max-workers: " << argv[2] << "\n";
-        return EXIT_FAILURE;
-    }
+   // Parse max workers
+   int max_workers = std::atoi(argv[2]);
+   if (max_workers <= 0)
+   {
+      std::cerr << "Invalid max-workers: " << argv[2] << "\n";
+      return EXIT_FAILURE;
+   }
 
-    // Create I/O context
-    corosio::io_context ioc;
+   // Create I/O context
+   corosio::io_context ioc;
 
-    // Create server with worker pool
-    echo_server server(ioc, max_workers);
+   // Create server with worker pool
+   echo_server server(ioc, max_workers);
 
-    // Bind to port
-    auto ec = server.bind(corosio::endpoint(port));
-    if (ec)
-    {
-        std::cerr << "Bind failed: " << ec.message() << "\n";
-        return EXIT_FAILURE;
-    }
+   // Bind to port
+   auto ec = server.bind(corosio::endpoint(port));
+   if (ec)
+   {
+      std::cerr << "Bind failed: " << ec.message() << "\n";
+      return EXIT_FAILURE;
+   }
 
-    std::cout << "Echo server listening on port " << port
-              << " with " << max_workers << " workers\n";
+   std::cout << "Echo server listening on port " << port << " with " << max_workers << " workers\n";
 
-    // Start accepting connections
-    server.start();
+   // Start accepting connections
+   server.start();
 
-    // Run the event loop
-    ioc.run();
+   // Run the event loop
+   ioc.run();
 
-    return EXIT_SUCCESS;
+   return EXIT_SUCCESS;
 }

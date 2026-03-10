@@ -7,3 +7,4 @@ report.xml
 .bash_history
 callgrind.out.*
 gtest-parallel-logs
+cmake_test_discovery_*.json
