@@ -3,12 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-ASIO & CORO documentation
-#########################
+ASIO & CORO
+###########
 
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
+This is a collection of samples and documentation showing how to use C++20 Coroutines with ASIO.
 
 
 .. toctree::
@@ -18,3 +16,4 @@ documentation for details.
    echo
    benchmark
    resources
+   process_cancellation_from_tests
