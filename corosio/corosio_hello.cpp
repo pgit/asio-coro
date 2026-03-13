@@ -4,7 +4,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
-// Official repository: https://github.com/cppalliance/capy
+// Official repository: https://github.com/cppalliance/corosio
 //
 
 #include <boost/capy.hpp>
@@ -14,7 +14,7 @@ using namespace boost::capy;
 
 task<> say_hello()
 {
-    std::cout << "Hello from Capy!\n";
+    std::cout << "Hello from Corosio!\n";
     co_return;
 }
 

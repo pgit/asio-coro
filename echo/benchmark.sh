@@ -3,10 +3,11 @@
 # Script for comparing performance of echo server implementations using bin/client.
 # Uses localhost port 55555, which is the default of most of the examples in this repository.
 #
-CLIENT=(build/bin/client "$@")
+CLIENT_BIN=${CLIENT_BIN:-build/bin/client}
+CLIENT=($CLIENT_BIN "$@")
 
 cmake --build build&
-[[ -f echo/other/echo-go && -f echo/other/target/release/echo-rust ]] || (cd echo/other && make)&
+[[ -f echo/other/echo-go && -f echo/other/client-go && -f echo/other/target/release/echo-rust ]] || (cd echo/other && make)&
 wait
 
 # kill any leftover processes

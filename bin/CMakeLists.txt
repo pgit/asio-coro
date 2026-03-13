@@ -6,6 +6,7 @@ endforeach()
 
 target_link_libraries(handle_signal Boost::program_options)
 target_link_libraries(client Boost::program_options)
+target_link_libraries(corosio_client Boost::program_options boost_corosio boost_capy)
 target_link_libraries(wait_for_port Boost::program_options)
 
 target_compile_definitions(file_io PRIVATE BOOST_ASIO_HAS_IO_URING)

@@ -69,7 +69,7 @@ link_libraries(asio_coro)
 
 add_subdirectory(bin)
 add_subdirectory(cancellation)
-add_subdirectory(capy)
+add_subdirectory(corosio)
 add_subdirectory(cobalt)
 add_subdirectory(echo)
 add_subdirectory(http)

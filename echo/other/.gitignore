@@ -1,3 +1,4 @@
 target/
 echo-go
+client-go
 Cargo.lock
