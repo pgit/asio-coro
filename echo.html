@@ -6,21 +6,21 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Form Sync to Async to As-Sync &mdash; ASIO &amp; CORO  documentation</title>
+  <title>Part I: Form Sync to Async to As-Sync &mdash; ASIO &amp; CORO  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=5929fcd5"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Benchmarks" href="benchmark.html" />
-    <link rel="prev" title="ASIO &amp; CORO documentation" href="index.html" /> 
+    <link rel="prev" title="ASIO &amp; CORO" href="index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -44,7 +44,7 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Form Sync to Async to As-Sync</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Part I: Form Sync to Async to As-Sync</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#synchronous">Synchronous</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#echo-sync-cpp">echo_sync.cpp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#synchronous-with-threads">Synchronous (with threads)</a></li>
@@ -60,11 +60,11 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#as-synchronous-coroutines">As-Synchronous (Coroutines)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#notes-on-choosing-an-implementation">Notes on choosing an implementation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="resources.html">Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="process_cancellation_from_tests.html">Process Cancellation Examples</a></li>
 </ul>
 
         </div>
@@ -81,7 +81,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Form Sync to Async to As-Sync</li>
+      <li class="breadcrumb-item active">Part I: Form Sync to Async to As-Sync</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/echo.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -91,10 +91,10 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="form-sync-to-async-to-as-sync">
-<h1>Form Sync to Async to As-Sync<a class="headerlink" href="#form-sync-to-async-to-as-sync" title="Link to this heading"></a></h1>
+  <section id="part-i-form-sync-to-async-to-as-sync">
+<h1>Part I: Form Sync to Async to As-Sync<a class="headerlink" href="#part-i-form-sync-to-async-to-as-sync" title="Link to this heading"></a></h1>
 <p>The objective is to implement a simple TCP Echo Server that accepts TCP incoming connections and simply echoes anything that is sent to it.</p>
-<p>We start off with a very simple, synchronous implementation and use that to motivate the use of synchronous operations, which is what ASIO is all about.</p>
+<p>We start off with a very simple, synchronous implementation and use that to motivate the use of asynchronous operations, which is what ASIO is all about.</p>
 <p>Finally, we escape callback hell by introducing <a class="reference external" href="https://en.cppreference.com/w/cpp/language/coroutines.html">C++20 Coroutines</a>.</p>
 <section id="synchronous">
 <h2>Synchronous<a class="headerlink" href="#synchronous" title="Link to this heading"></a></h2>
@@ -282,22 +282,13 @@ awaitable primitives. Key points:</p>
 </pre></div>
 </div>
 </section>
-<section id="notes-on-choosing-an-implementation">
-<h2>Notes on choosing an implementation<a class="headerlink" href="#notes-on-choosing-an-implementation" title="Link to this heading"></a></h2>
-<ul class="simple">
-<li><p>Start with sync for learning and debugging.</p></li>
-<li><p>Use thread-sync or thread pools for moderate concurrency with simpler synchronous code structure.</p></li>
-<li><p>Prefer async or coro for high concurrency and lower resource usage.</p></li>
-<li><p>Coroutines give clearer, maintainable code compared to callback-based async, at the cost of needing a modern C++ toolchain and coroutine-aware Asio setup.</p></li>
-</ul>
-</section>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="ASIO &amp; CORO documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral float-left" title="ASIO &amp; CORO" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="benchmark.html" class="btn btn-neutral float-right" title="Benchmarks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

@@ -1,5 +1,5 @@
 ####################################################################################################
-Form Sync to Async to As-Sync
+Part I: Form Sync to Async to As-Sync
 ####################################################################################################
 
 .. https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html#sections
@@ -7,7 +7,7 @@ Form Sync to Async to As-Sync
 
 The objective is to implement a simple TCP Echo Server that accepts TCP incoming connections and simply echoes anything that is sent to it.
 
-We start off with a very simple, synchronous implementation and use that to motivate the use of synchronous operations, which is what ASIO is all about.
+We start off with a very simple, synchronous implementation and use that to motivate the use of asynchronous operations, which is what ASIO is all about.
 
 Finally, we escape callback hell by introducing `C++20 Coroutines`_.
 
@@ -220,10 +220,3 @@ awaitable primitives. Key points:
       co_spawn(context, server({context, {tcp::v6(), 55555}}), detached);
       context.run();
    }
-
-Notes on choosing an implementation
-***********************************
-- Start with sync for learning and debugging.
-- Use thread-sync or thread pools for moderate concurrency with simpler synchronous code structure.
-- Prefer async or coro for high concurrency and lower resource usage.
-- Coroutines give clearer, maintainable code compared to callback-based async, at the cost of needing a modern C++ toolchain and coroutine-aware Asio setup.

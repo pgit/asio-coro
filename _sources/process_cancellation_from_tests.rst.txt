@@ -1,0 +1,796 @@
+Process Cancellation Examples
+=============================
+
+This file was generated automatically from ``test/test_process_cancellation.cpp``.
+
+Ping
+----
+
+:: code-block::
+
+    PING ::1(::1) 56 data bytes
+    64 bytes from ::1: icmp_seq=1 ttl=64 time=0.019 ms
+    64 bytes from ::1: icmp_seq=2 ttl=64 time=0.083 ms
+    64 bytes from ::1: icmp_seq=3 ttl=64 time=0.058 ms
+    64 bytes from ::1: icmp_seq=4 ttl=64 time=0.074 ms
+    64 bytes from ::1: icmp_seq=5 ttl=64 time=0.082 ms
+
+    --- ::1 ping statistics ---
+    5 packets transmitted, 5 received, 0% packet loss, time 414ms
+    rtt min/avg/max/mdev = 0.019/0.063/0.083/0.023 ms
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L91>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, Ping)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         std::println("execute: communicating...");
+         co_await log_stdout(out);
+         std::println("execute: communicating... done");
+
+         std::println("execute: waiting for process...");
+         auto exit_code = co_await child.async_wait();
+         std::println("execute: waiting for process... done, exit code {}", exit_code);
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt")));
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), token());
+   }
+
+PingSpawned
+-----------
+
+Equivalent, but using co_spawn() to turn the coroutine into an asynchronous operation.
+The completion token is the default 'deferred' token, which is awaitable, too.
+
+This example is for exposition only. There is no real reason to use co_spawn() here with the
+`deferred` completion token co_await, because we can await log() directly.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L117>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, PingSpawned)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_await co_spawn(executor, log_stdout(out));
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt")));
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), token());
+   }
+
+PingParallelGroup
+-----------------
+
+(No description provided.)
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L132>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, PingParallelGroup)
+   {
+      testWithErr = [this](readable_pipe out, readable_pipe err,
+                           bp::process child) -> awaitable<ExitCode>
+      {
+         co_await (log_stdout(out) && log_stderr(err));
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }
+
+WHEN_io_object_is_cancelled_THEN_exception_is_thrown
+----------------------------------------------------
+
+Next, we start cancelling the ping. We use a timer with an old-fashioned lambda completion
+handler. Cancellation is done through the .cancel() operation on the IO object.
+
+PLEASE NOTE: This testcase actually suffers from the ASIO cancellation race:
+              https://www.youtube.com/watch?v=hHk5OXlKVFg&t=484s
+
+This testcase only runs stable because the "ping" is likely to not output anything at
+t0 plus 150ms. In theory, it could suffer from the ASIO cancellation race condition.
+
+A solution to this problem could be to close() the socket instead of cancel()ing it. Even
+if cancellation misses the read, the next attempt would fail because the socket is now closed.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L161>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_io_object_is_cancelled_THEN_exception_is_thrown)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         steady_timer timer(executor);
+         timer.expires_after(150ms);
+         timer.async_wait([&](error_code ec)
+         {
+            if (!ec)
+               out.cancel(); // cancel any operation on this IO object
+         });
+
+         co_await log_stdout(out);
+         ADD_FAILURE(); // will not be executed on timeout
+         co_return 0;
+      };
+
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), token());
+   }
+
+WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none
+-----------------------------------------------------------
+
+IO object based cancellation operates is handled separately from per-operation cancellation.
+So, if we catch the cancellation error, after cancellation, the coroutine's cancellation state
+is still 'none'.
+
+This means that the coroutine can continue to run normally.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L189>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         steady_timer timer(executor);
+         timer.expires_after(150ms);
+         timer.async_wait([&](error_code ec)
+         {
+            if (!ec)
+               out.cancel(); // cancel any operation on this IO object
+         });
+
+         co_await co_spawn(co_await this_coro::executor, log_stdout(out), as_tuple); // doesn't throw
+         EXPECT_EQ((co_await this_coro::cancellation_state).cancelled(), cancellation_type::none);
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_exit(0)); // only the log output was cancelled, but not the process
+      co_spawn(executor, ping(), token());
+   }
+
+WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printed
+------------------------------------------------------------
+
+Test to verify that the cancellation handler of log() actually prints the remaining buffer that
+is not yet terminated by a newline.
+
+PLEASE NOTE: This testcase actually suffers from the ASIO cancellation race:
+              https://www.youtube.com/watch?v=hHk5OXlKVFg&t=484s
+
+The request for cancellation (out.cancel()) may be ignored by the the readable pipe iff there is
+a pending asynchronous operation that is already scheduled for completion! That operation will
+still complete successfully and the request for cancellation is ignored.
+
+The only reason this testcase runs stable is that with the timeout of 150ms, we aimed right
+between two "pings" so it is very unlikely that there is something to read from the pipe at
+time of cancellation.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L226>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printed)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         steady_timer timer(executor);
+         timer.expires_after(150ms);
+         timer.async_wait([&](error_code ec)
+         {
+            if (!ec)
+               out.cancel(); // cancel any operation on this IO object
+         });
+
+         co_await log_stdout(out);
+         ADD_FAILURE(); // will not be executed on timeout
+         co_return 0;
+      };
+
+      EXPECT_CALL(*this, on_stdout("No newline"));
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, execute("/usr/bin/bash", {"-c", "echo -ne 'First\nNo newline'; sleep 1"}),
+               token());
+   }
+
+WHEN_io_object_is_closed_THEN_log_function_is_cancelled_reliably
+----------------------------------------------------------------
+
+Only if we actually close() the pipe, cancellation is reliable. If an asynchronous operation is
+already scheduled for completion when closing the pipe, that operation still completes
+successfully. But on the next attempt to read something we get 'bad_file_descriptor'.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L256>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_io_object_is_closed_THEN_log_function_is_cancelled_reliably)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         steady_timer timer(executor);
+         timer.expires_after(150ms);
+         timer.async_wait([&](error_code ec)
+         {
+            if (!ec)
+               out.close();
+         });
+
+         co_await log_stdout(out);
+         ADD_FAILURE(); // will not be executed on timeout
+         co_return 0;
+      };
+
+      EXPECT_CALL(*this, on_error(_)); // can be either operation_canceled or bad_file_descriptor
+      co_spawn(executor, execute("/usr/bin/bash", {"-c", "while date; do true; done"}), token());
+   }
+
+CancellationSlot
+----------------
+
+The more flexible, modern approach is to use per-operation cancellation instead of per-object
+cancellation. For this, you can bind a 'cancellation slot' to a completion token.
+This is similar to binding an executor or allocator to a token.
+
+Then, when you want to cancel an operation, you can 'emit' a cancellation signal.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L286>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, CancellationSlot)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         cancellation_signal signal;
+         steady_timer timer(executor);
+         timer.expires_after(150ms);
+         timer.async_wait([&](error_code ec)
+         {
+            if (!ec)
+               signal.emit(cancellation_type::terminal);
+         });
+
+         co_await co_spawn(executor, log_stdout(out), bind_cancellation_slot(signal.slot()));
+         ADD_FAILURE();
+         co_return co_await child.async_wait(); // will not be executed on timeout
+      };
+
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), token());
+   }
+
+CancelAfter
+-----------
+
+Using cancellation slots manually is verbose, so there is a completion token adapter
+called `cancel_after` that does the grunt work of creating the timer four you.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L312>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, CancelAfter)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_await co_spawn(executor, log_stdout(out), cancel_after(150ms));
+         ADD_FAILURE();
+         co_return co_await child.async_wait(); // will not be executed on timeout
+      };
+
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), token());
+   }
+
+CancelFixture
+-------------
+
+We can also apply the timeout to the top level coroutine. it will be forwarded to the innermost
+currently active coroutine and any asynchronous operations within.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L329>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, CancelFixture)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_await log_stdout(out);
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }
+
+WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_await
+-------------------------------------------------------------
+
+Until now, the cancellation request always reaches the log() coroutine. What if we want to
+exercise more control over the cancellation process, for example to do some (possibly
+asynchronous) cleanup?
+
+Try to catch the 'operation_cancelled' exception raised from running log().
+If we do that, the coroutine continues, but the error will be re-thrown on the next co_await.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L351>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_await)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         try
+         {
+            co_await log_stdout(out);
+         }
+         catch (const system_error& ec)
+         {
+            std::println("log completed with error: {}", what(ec.code()));
+         }
+         auto exit_code = co_await child.async_wait(); // throws if there was a timeout before
+         ADD_FAILURE();
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }
+
+WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await
+-----------------------------------------------------------
+
+Same as above, but with as_tuple instead of catch().
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L375>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto [ec] = co_await co_spawn(executor, log_stdout(out), as_tuple);
+         std::println("log completed with: {}", what(ec));
+         auto exit_code = co_await child.async_wait(); // throws if there was a timeout before
+         ADD_FAILURE();
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::operation_canceled)));
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }
+
+WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_next_await
+------------------------------------------------------------------
+
+To fix this, we can reset the cancellation state before the next co_await.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L396>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_next_await)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto [ec] = co_await co_spawn(executor, log_stdout(out), as_tuple);
+         EXPECT_TRUE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
+         co_await this_coro::reset_cancellation_state();
+         EXPECT_FALSE((co_await this_coro::cancellation_state).cancelled() != cancellation_type::none);
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }
+
+WHEN_log_is_resumed_after_cancellation_THEN_ping_completes
+----------------------------------------------------------
+
+Resetting the cancellation state also allows us to re-start the `log()` coroutine.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L437>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_log_is_resumed_after_cancellation_THEN_ping_completes)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_await co_spawn(executor, log_stdout(out), as_tuple);
+         co_await this_coro::reset_cancellation_state();
+         child.interrupt();
+         co_await co_spawn(executor, log_stdout(out));
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }
+
+DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_pipe
+--------------------------------------------------------------
+
+The default cancellation type is 'terminal', which is the strongest and can leave the
+operation in a state that cannot be resumed. What this means for each specific operation
+is very different.
+
+`bp::async_execute()` maps the cancellation types to the following operations on the process:
+
++-------------------+------------------+-----------------------------+
+| cancellation_type | results in       | equivalent to sending       |
++===================+==================+=============================+
+| terminal          | terminate()      | SIGKILL                     |
++-------------------+------------------+-----------------------------+
+| partial           | request_exit()   | SIGTERM                     |
++-------------------+------------------+-----------------------------+
+| total             | interrupt()      | SIGINT                      |
++-------------------+------------------+-----------------------------+
+
+If we want cancellation to arrive at `async_execute()` instead of `log()`, we could try to
+spawn the logging into the background...
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L475>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_pipe) // UB
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_spawn(executor, log_stdout(out), detached);
+         co_return co_await async_execute(std::move(child));
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_log_uses_promise_THEN_is_started_immediately
+-------------------------------------------------
+
+The use_promise completion token has two very interesting properties:
+
+1) Similar to the `detached` completion token, the operation is started eagerly.
+2) When the promise is destroyed, the operation is cancelled.
+
+This means tht we can use it to help with 'structured concurrency'.
+
+.. warning::
+    Cancelling an operation is not equivalent to waiting for its completion: If the
+    async operation catches the cancellation errors and decides to continue anyway,
+    that will happen later, after the parent frame has been destroyed.
+
+    Because of this, it is good practice to react to cancellation immediately.
+    For async shutdown, non-terminal cancellation types should be used.
+
+    There is no such thing as an "async destructor".
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L509>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_log_uses_promise_THEN_is_started_immediately)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto promise = co_spawn(executor, log_stdout(out), use_promise);
+         co_return co_await async_execute(std::move(child));
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("PING"))).Times(1);
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(Between(0, 1));
+
+      //
+      // We can't expect "rtt" here -- even though the ping will complete gracefully, there is a
+      // race condition in the code above, between reading all of the log output and the log()
+      // coroutine being cancelled.
+      //
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_log_uses_promise_THEN_is_cancelled_on_destruction
+------------------------------------------------------
+
+This test is similar to the one before, but destroys the promise earlier, after a sleep().
+This leads to cancellation of the log() coroutine.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L535>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_log_uses_promise_THEN_is_cancelled_on_destruction)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         {
+            auto promise = co_spawn(executor, log_stdout(out), use_promise);
+            co_await sleep(50ms);
+            std::println("destroying promise...");
+         }
+         std::println("destroying promise... done");
+         EXPECT_CALL(*this, on_stdout(_)).Times(Between(0, 1));
+         co_return co_await child.async_wait();
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), token());
+   }
+
+WHEN_promise_is_awaited_THEN_output_is_complete
+-----------------------------------------------
+
+If we actually wait on the promise, finally, we have what we want:
+
+1) The process is cancelled using SIGINT
+2) We can read the remaining output
+3) Exit is handled gracefully
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L563>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_await this_coro::throw_if_cancelled(false);
+         auto promise = co_spawn(executor, log_stdout(out), use_promise);
+         auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
+         co_await std::move(promise);
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_descriptors_are_kept_open_THEN_times_out
+---------------------------------------------
+
+When spawning external processes, we need to be ready to handle "leaked file descriptors":
+Even though the process has exited, some sub-process may still keep STDOUT, STDERR or others
+open, keeping `log_stdout` alive.
+
+So, when waiting for the logging coroutine to finish, apply a timeout.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L587>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         co_await this_coro::reset_cancellation_state(enable_total_cancellation());
+
+         auto ex = co_await this_coro::executor;
+         auto promise = co_spawn(ex, log_stdout(out), use_promise);
+
+         auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
+         std::println("execute: exit code {} (ec={})", exit_code, what(ec));
+
+         co_await this_coro::reset_cancellation_state();
+         co_await (std::move(promise)(use_awaitable) || sleep(1s));
+
+         EXPECT_TRUE(out.is_open());
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_stdout("STDOUT")).Times(1);
+      EXPECT_CALL(*this, on_exit(SIGINT));
+
+      co_spawn(executor, execute("/usr/bin/bash", {"-c", "sleep 10& echo STDOUT; sleep 5"}),
+               cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_wait_for_pipe_long_enough_THEN_sees_eof
+--------------------------------------------
+
+If the file descriptors are closed within the timeout (here: 1s), we can still see the EOF.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L616>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_wait_for_pipe_long_enough_THEN_sees_eof)
+   {
+      testWithErr = [this](readable_pipe out, readable_pipe err,
+                           bp::process child) -> awaitable<ExitCode>
+      {
+         auto ex = co_await this_coro::executor;
+         auto promise = make_parallel_group(co_spawn(ex, log_stdout(out), deferred),
+                                            co_spawn(ex, log_stderr(err), deferred))
+                           .async_wait(wait_for_all(), use_promise);
+
+         co_await this_coro::throw_if_cancelled(false);
+         auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
+
+         steady_timer timer(ex);
+         co_await std::move(promise)(cancel_after(timer, 1s));
+
+         EXPECT_FALSE(out.is_open());
+         EXPECT_FALSE(err.is_open());
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_stderr("STDERR")).Times(1);
+      EXPECT_CALL(*this, on_stdout("STDOUT")).Times(1);
+      EXPECT_CALL(*this, on_stdout("DELAYED")).Times(1);
+      EXPECT_CALL(*this, on_exit(SIGTERM));
+
+      co_spawn(executor,
+               execute("/usr/bin/bash",
+                       {"-c", "(sleep 0.5; echo DELAYED)& echo >&2 STDERR; echo STDOUT; sleep 10"}),
+               cancel_after(150ms, cancellation_type::partial, token()));
+   }
+
+WHEN_parallel_group_is_cancelled_total_THEN_logging_continues
+-------------------------------------------------------------
+
+This does also what we want: The 'total' cancellation is delivered to the parallel group, which
+forwards it to both subtasks. Only async_execute() reacts to it, signalling SIGINT to the
+process and completing with the exit code eventually. The other operation in the parallel group,
+log(), does not react to the cancellation because it only supports 'terminal|partial'.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L656>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_parallel_group_is_cancelled_total_THEN_logging_continues)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto [order, ec, exit_code, ep] =
+            co_await make_parallel_group( // on 'total' cancellation, ...
+               async_execute(std::move(child)), // ... signals SIGINT and waits for process and ...
+               co_spawn(executor, log_stdout(out)) // ... ignores the 'total' cancellation signal
+               )
+               .async_wait(wait_for_one_error(), deferred);
+         std::println("order=[{}] ec={} ex={}", order, what(ec), what(ep));
+         co_return exit_code;
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1); // ping has exited gracefully
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_parallel_group_operator_THEN_cancellation_fails
+----------------------------------------------------
+
+(No description provided.)
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L700>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_parallel_group_operator_THEN_cancellation_fails)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto cs = co_await this_coro::cancellation_state;
+         // This doesn't cancel:
+         // auto awaitable = (async_execute(std::move(child), use_awaitable) && log_stdout(out));
+         auto awaitable = (async_execute_enable_total(std::move(child)) && log_stdout(out));
+         auto status = co_await std::move(awaitable);
+         std::println("CANCELLED: {}", cs.cancelled());
+         co_return status;
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_redirect_cancellation_slot_manually_THEN_output_is_complete
+----------------------------------------------------------------
+
+Here, we redirect the cancellation slot of the 'test' coroutine directly to async_execute(), and
+to async_execute() ONLY. That is easy to do, but we also have to make sure that the default
+forwarding behaviour is not applied to co_spawn() as well. So we bind an empty cancellation slot
+to the co_spawn() completion token instead:
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L727>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_redirect_cancellation_slot_manually_THEN_output_is_complete)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto cs = co_await this_coro::cancellation_state;
+         auto awaitable =
+            log_stdout(out) &&
+            async_execute(std::move(child), bind_cancellation_slot(cs.slot(), use_awaitable));
+         auto status = co_await co_spawn(executor, std::move(awaitable),
+                                         bind_cancellation_slot(cancellation_slot()));
+         std::println("CANCELLED: {}", cs.cancelled());
+         co_return status;
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
+      EXPECT_CALL(*this, on_exit(0));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
+   }
+
+WHEN_child_is_terminated_THEN_exits_with_sigterm
+------------------------------------------------
+
+Cancellation type 'partial': child.request_exit() (SIGTERM)
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L752>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_child_is_terminated_THEN_exits_with_sigterm)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto promise = co_spawn(executor, log_stdout(out), use_promise);
+         co_return co_await async_execute(std::move(child));
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+      EXPECT_CALL(*this, on_exit(SIGTERM));
+      co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::partial, token()));
+   }
+
+WHEN_child_is_killed_THEN_exits_with_sigkill
+--------------------------------------------
+
+Sending a SIGKILL should always result in immediate termination of the process.
+
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L770>`_
+
+.. code-block:: cpp
+
+   TEST_F(ProcessCancellation, WHEN_child_is_killed_THEN_exits_with_sigkill)
+   {
+      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      {
+         auto promise = co_spawn(executor, log_stdout(out), use_promise);
+         co_return co_await async_execute(std::move(child));
+      };
+
+      EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
+   #if BOOST_VERSION < 108900
+      EXPECT_CALL(*this, on_error(make_system_error(boost::system::errc::no_child_process)));
+   #else
+      EXPECT_CALL(*this, on_exit(9)); // https://github.com/boostorg/process/issues/503
+   #endif
+      co_spawn(executor, ping(), cancel_after(150ms, token()));
+   }

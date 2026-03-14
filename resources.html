@@ -8,17 +8,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Resources &mdash; ASIO &amp; CORO  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=5929fcd5"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Process Cancellation Examples" href="process_cancellation_from_tests.html" />
     <link rel="prev" title="Benchmarks" href="benchmark.html" /> 
 </head>
 
@@ -43,7 +44,7 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="echo.html">Form Sync to Async to As-Sync</a></li>
+<li class="toctree-l1"><a class="reference internal" href="echo.html">Part I: Form Sync to Async to As-Sync</a></li>
 <li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarks</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Resources</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#documentation">Documentation</a><ul>
@@ -53,13 +54,17 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#playlist">Playlist</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#using-asio-with-c-20-coroutines">Using Asio with C++20 Coroutines</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#chris-kohlhoff">Chris Kohlhoff</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#structured-concurrency">Structured Concurrency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#general">General</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#outlook">Outlook</a></li>
 </ul>
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="process_cancellation_from_tests.html">Process Cancellation Examples</a></li>
 </ul>
 
         </div>
@@ -114,26 +119,32 @@
 <section id="repositories">
 <h3>Repositories<a class="headerlink" href="#repositories" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>🟩 <a class="reference external" href="https://github.com/pgit/asio-coro">pgit/asio-coro</a></p></li>
-<li><p>🟨 <a class="reference external" href="https://github.com/anarthal/servertech-chat">anarthal/servertech-chat</a></p></li>
+<li><p>🟩 <a class="reference external" href="https://github.com/pgit/asio-coro">https://github.com/pgit/asio-coro</a></p></li>
+<li><p>🟨 <a class="reference external" href="https://github.com/anarthal/servertech-chat">https://github.com/anarthal/servertech-chat</a></p></li>
 </ul>
 </section>
 </section>
 <section id="playlist">
 <h2>Playlist<a class="headerlink" href="#playlist" title="Link to this heading"></a></h2>
+<section id="introduction">
+<h3>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=txffplpsSzg">Threads vs Coroutines — Why C++ Has Two Concurrency Models - Conor Spilsbury - CppCon 2025</a></p></li>
+</ul>
+</section>
 <section id="using-asio-with-c-20-coroutines">
 <h3>Using Asio with C++20 Coroutines<a class="headerlink" href="#using-asio-with-c-20-coroutines" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=0i_pFZSijZc">Asynchrony with ASIO and coroutines - Andrzej Krzemieński - code::dive 2022</a></p></li>
+<li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=0i_pFZSijZc&amp;t=2789s">Asynchrony with ASIO and coroutines - Andrzej Krzemieński - code::dive 2022</a></p></li>
 <li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=80Zs0WbXAMY">Cancellations in Asio: a tale of coroutines and timeouts - Rubén Pérez Hidalgo (2025-06)</a></p></li>
-<li><p>🟨 <a class="reference external" href="https://www.youtube.com/watch?v=RBldGKfLb9I">C++20 Coroutines, with Boost ASIO in production: Frightening but awesome</a></p></li>
+<li><p>🟨 <a class="reference external" href="https://www.youtube.com/watch?v=RBldGKfLb9I&amp;t=2375s">C++20 Coroutines, with Boost ASIO in production: Frightening but awesome</a></p></li>
 </ul>
 </section>
 <section id="chris-kohlhoff">
 <h3>Chris Kohlhoff<a class="headerlink" href="#chris-kohlhoff" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=icgnqFM-aY4">Talking Async Ep1: Why C++20 is the Awesomest Language for Network Programming</a></p></li>
-<li><p>🟨 <a class="reference external" href="https://www.youtube.com/watch?v=hHk5OXlKVFg">Talking Async Ep2: Cancellation in depth</a> (<a class="reference external" href="https://www.youtube.com/watch?v=hHk5OXlKVFg&amp;t=484s">Cancellation Race Condition</a>)</p></li>
+<li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=icgnqFM-aY4&amp;t=2477s">Talking Async Ep1: Why C++20 is the Awesomest Language for Network Programming</a></p></li>
+<li><p>🟨 <a class="reference external" href="https://www.youtube.com/watch?v=hHk5OXlKVFg&amp;t=3718s">Talking Async Ep2: Cancellation in depth</a></p></li>
 </ul>
 </section>
 <section id="structured-concurrency">
@@ -141,6 +152,20 @@
 <ul class="simple">
 <li><p>🟨 <a class="reference external" href="https://www.youtube.com/watch?v=1Wy5sq3s2rg">Writing Safer Concurrent Code with Coroutines… - Lewis Baker - CppCon 2019</a></p></li>
 <li><p>🟨 <a class="reference external" href="https://www.youtube.com/watch?v=hJhNhIeq29U">Structured Concurrency - Sebastiaan Koppe - DConf ‘22</a></p></li>
+</ul>
+</section>
+<section id="general">
+<h3>General<a class="headerlink" href="#general" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>🟩 <a class="reference external" href="https://www.youtube.com/watch?v=7a9AP4rD08M">Choose the Right C++ Parallelism Tool | Low-Level vs Async vs Coroutines vs Data Parallel</a></p></li>
+<li><p>🟥 <a class="reference external" href="https://www.youtube.com/watch?v=S1FEuyD33yA">std::execution in Asio Codebases: Adopting Senders Without a Rewrite - Robert Leahy - CppCon 2025</a></p></li>
+</ul>
+</section>
+<section id="outlook">
+<h3>Outlook<a class="headerlink" href="#outlook" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/cppalliance/capy">C++ Aliance: Capy</a></p></li>
+<li><p><a class="reference external" href="https://master.corosio.cpp.al/corosio/index.html">Boost Corosio</a></p></li>
 </ul>
 </section>
 </section>
@@ -151,6 +176,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="benchmark.html" class="btn btn-neutral float-left" title="Benchmarks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="process_cancellation_from_tests.html" class="btn btn-neutral float-right" title="Process Cancellation Examples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

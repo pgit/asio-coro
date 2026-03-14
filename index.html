@@ -6,20 +6,20 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ASIO &amp; CORO documentation &mdash; ASIO &amp; CORO  documentation</title>
+  <title>ASIO &amp; CORO &mdash; ASIO &amp; CORO  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=5929fcd5"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Form Sync to Async to As-Sync" href="echo.html" /> 
+    <link rel="next" title="Part I: Form Sync to Async to As-Sync" href="echo.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,9 +43,10 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="echo.html">Form Sync to Async to As-Sync</a></li>
+<li class="toctree-l1"><a class="reference internal" href="echo.html">Part I: Form Sync to Async to As-Sync</a></li>
 <li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="resources.html">Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="process_cancellation_from_tests.html">Process Cancellation Examples</a></li>
 </ul>
 
         </div>
@@ -62,7 +63,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">ASIO &amp; CORO documentation</li>
+      <li class="breadcrumb-item active">ASIO &amp; CORO</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -72,15 +73,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="asio-coro-documentation">
-<h1>ASIO &amp; CORO documentation<a class="headerlink" href="#asio-coro-documentation" title="Link to this heading"></a></h1>
-<p>Add your content using <code class="docutils literal notranslate"><span class="pre">reStructuredText</span></code> syntax. See the
-<a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html">reStructuredText</a>
-documentation for details.</p>
+  <section id="asio-coro">
+<h1>ASIO &amp; CORO<a class="headerlink" href="#asio-coro" title="Link to this heading"></a></h1>
+<p>This is a collection of samples and documentation showing how to use C++20 Coroutines with ASIO.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="echo.html">Form Sync to Async to As-Sync</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="echo.html">Part I: Form Sync to Async to As-Sync</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="echo.html#synchronous">Synchronous</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="echo.html#echo-sync-cpp">echo_sync.cpp</a></li>
 <li class="toctree-l3"><a class="reference internal" href="echo.html#synchronous-with-threads">Synchronous (with threads)</a></li>
@@ -91,7 +90,6 @@ documentation for details.</p>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="echo.html#as-synchronous-coroutines">As-Synchronous (Coroutines)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="echo.html#notes-on-choosing-an-implementation">Notes on choosing an implementation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="benchmark.html">Benchmarks</a><ul>
@@ -107,11 +105,42 @@ documentation for details.</p>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="resources.html#playlist">Playlist</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="resources.html#introduction">Introduction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="resources.html#using-asio-with-c-20-coroutines">Using Asio with C++20 Coroutines</a></li>
 <li class="toctree-l3"><a class="reference internal" href="resources.html#chris-kohlhoff">Chris Kohlhoff</a></li>
 <li class="toctree-l3"><a class="reference internal" href="resources.html#structured-concurrency">Structured Concurrency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resources.html#general">General</a></li>
+<li class="toctree-l3"><a class="reference internal" href="resources.html#outlook">Outlook</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="process_cancellation_from_tests.html">Process Cancellation Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#ping">Ping</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#pingspawned">PingSpawned</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#pingparallelgroup">PingParallelGroup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-io-object-is-cancelled-then-exception-is-thrown">WHEN_io_object_is_cancelled_THEN_exception_is_thrown</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-io-object-is-cancelled-then-cancellation-state-is-none">WHEN_io_object_is_cancelled_THEN_cancellation_state_is_none</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-io-object-is-cancelled-then-remaining-buffer-is-printed">WHEN_io_object_is_cancelled_THEN_remaining_buffer_is_printed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-io-object-is-closed-then-log-function-is-cancelled-reliably">WHEN_io_object_is_closed_THEN_log_function_is_cancelled_reliably</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#cancellationslot">CancellationSlot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#cancelafter">CancelAfter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#cancelfixture">CancelFixture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-exception-from-log-is-caught-then-rethrows-on-next-await">WHEN_exception_from_log_is_caught_THEN_rethrows_on_next_await</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-log-returns-error-as-tuple-then-rethrows-on-next-await">WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-cancellation-state-is-reset-then-does-not-throw-on-next-await">WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_next_await</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-log-is-resumed-after-cancellation-then-ping-completes">WHEN_log_is_resumed_after_cancellation_THEN_ping_completes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#disabled-when-log-is-detached-then-continues-reading-from-pipe">DISABLED_WHEN_log_is_detached_THEN_continues_reading_from_pipe</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-log-uses-promise-then-is-started-immediately">WHEN_log_uses_promise_THEN_is_started_immediately</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-log-uses-promise-then-is-cancelled-on-destruction">WHEN_log_uses_promise_THEN_is_cancelled_on_destruction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-promise-is-awaited-then-output-is-complete">WHEN_promise_is_awaited_THEN_output_is_complete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-descriptors-are-kept-open-then-times-out">WHEN_descriptors_are_kept_open_THEN_times_out</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-wait-for-pipe-long-enough-then-sees-eof">WHEN_wait_for_pipe_long_enough_THEN_sees_eof</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-parallel-group-is-cancelled-total-then-logging-continues">WHEN_parallel_group_is_cancelled_total_THEN_logging_continues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-parallel-group-operator-then-cancellation-fails">WHEN_parallel_group_operator_THEN_cancellation_fails</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-redirect-cancellation-slot-manually-then-output-is-complete">WHEN_redirect_cancellation_slot_manually_THEN_output_is_complete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-child-is-terminated-then-exits-with-sigterm">WHEN_child_is_terminated_THEN_exits_with_sigterm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="process_cancellation_from_tests.html#when-child-is-killed-then-exits-with-sigkill">WHEN_child_is_killed_THEN_exits_with_sigkill</a></li>
 </ul>
 </li>
 </ul>
@@ -122,7 +151,7 @@ documentation for details.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="echo.html" class="btn btn-neutral float-right" title="Form Sync to Async to As-Sync" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="echo.html" class="btn btn-neutral float-right" title="Part I: Form Sync to Async to As-Sync" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
