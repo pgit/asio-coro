@@ -1,6 +1,7 @@
 #include "asio-coro.hpp"
 #include "process_base.hpp"
 
+#include <boost/asio/experimental/parallel_group.hpp>
 #include <boost/asio/experimental/promise.hpp>
 #include <boost/asio/experimental/use_promise.hpp>
 
@@ -480,7 +481,7 @@ TEST_F(ProcessCancellation, DISABLED_WHEN_log_is_detached_THEN_continues_reading
       co_return co_await async_execute(std::move(child));
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -571,7 +572,7 @@ TEST_F(ProcessCancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
       co_return exit_code;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -586,12 +587,15 @@ TEST_F(ProcessCancellation, WHEN_promise_is_awaited_THEN_output_is_complete)
 //
 TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
 {
-   test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+   testWithErr = [this](readable_pipe out, readable_pipe err,
+                        bp::process child) -> awaitable<ExitCode>
    {
       co_await this_coro::reset_cancellation_state(enable_total_cancellation());
 
       auto ex = co_await this_coro::executor;
-      auto promise = co_spawn(ex, log_stdout(out), use_promise);
+      auto promise = make_parallel_group(co_spawn(ex, log_stdout(out), deferred),
+                                         co_spawn(ex, log_stderr(err), deferred))
+                        .async_wait(wait_for_all(), use_promise);
 
       auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
       std::println("execute: exit code {} (ec={})", exit_code, what(ec));
@@ -600,13 +604,15 @@ TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
       co_await (std::move(promise)(use_awaitable) || sleep(1s));
 
       EXPECT_TRUE(out.is_open());
+      EXPECT_FALSE(err.is_open());
       co_return exit_code;
    };
 
    EXPECT_CALL(*this, on_stdout("STDOUT")).Times(1);
    EXPECT_CALL(*this, on_exit(SIGINT));
 
-   co_spawn(executor, execute("/usr/bin/bash", {"-c", "sleep 10& echo STDOUT; sleep 5"}),
+   co_spawn(executor,
+            execute("/usr/bin/bash", {"-c", "exec 2>&-; (sleep 10 >&1)& echo STDOUT; sleep 5"}),
             cancel_after(150ms, cancellation_type::total, token()));
 }
 
@@ -710,7 +716,7 @@ TEST_F(ProcessCancellation, WHEN_parallel_group_operator_THEN_cancellation_fails
       co_return status;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -738,7 +744,7 @@ TEST_F(ProcessCancellation, WHEN_redirect_cancellation_slot_manually_THEN_output
       co_return status;
    };
 
-   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+   EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
    EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
    EXPECT_CALL(*this, on_exit(0));
    co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));

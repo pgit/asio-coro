@@ -124,7 +124,7 @@ awaitable<void> log(std::string_view prefix, readable_pipe& pipe,
    //
    if (ec == boost::asio::error::eof)
    {
-      std::println("{}: reached EOF", prefix);
+      std::println("{}: EOF", prefix);
       pipe.close();
    }
    else if (ec)
