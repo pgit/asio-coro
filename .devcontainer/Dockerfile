@@ -31,12 +31,14 @@ RUN git clone https://github.com/Tencent/rapidjson.git && \
 #     rm -f /tmp/asio-issue-1705.patch
 
 RUN git clone https://github.com/cppalliance/capy.git && \
-    cd capy && mkdir -p build && cd build && \
+    cd capy && git checkout 83cdfcd902506dc110dcfaef5872f9316386cf81 && \
+    mkdir -p build && cd build && \
     cmake .. && make -j $(nproc) install && \
     cd ../.. && rm -rf capy
 
 RUN git clone https://github.com/cppalliance/corosio.git && \
-    cd corosio && mkdir -p build && cd build && \
+    cd corosio && git checkout c49ccf173af59a5e1fa58f4d3a72fc5826844798 && \
+    mkdir -p build && cd build && \
     cmake .. && make -j $(nproc) install && \
     cd ../.. && rm -rf corosio
 
