@@ -19,7 +19,7 @@ Ping
     5 packets transmitted, 5 received, 0% packet loss, time 414ms
     rtt min/avg/max/mdev = 0.019/0.063/0.083/0.023 ms
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L91>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L92>`_
 
 .. code-block:: cpp
 
@@ -51,7 +51,7 @@ The completion token is the default 'deferred' token, which is awaitable, too.
 This example is for exposition only. There is no real reason to use co_spawn() here with the
 `deferred` completion token co_await, because we can await log() directly.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L117>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L118>`_
 
 .. code-block:: cpp
 
@@ -73,7 +73,7 @@ PingParallelGroup
 
 (No description provided.)
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L132>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L133>`_
 
 .. code-block:: cpp
 
@@ -106,7 +106,7 @@ t0 plus 150ms. In theory, it could suffer from the ASIO cancellation race condit
 A solution to this problem could be to close() the socket instead of cancel()ing it. Even
 if cancellation misses the read, the next attempt would fail because the socket is now closed.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L161>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L162>`_
 
 .. code-block:: cpp
 
@@ -140,7 +140,7 @@ is still 'none'.
 
 This means that the coroutine can continue to run normally.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L189>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L190>`_
 
 .. code-block:: cpp
 
@@ -183,7 +183,7 @@ The only reason this testcase runs stable is that with the timeout of 150ms, we 
 between two "pings" so it is very unlikely that there is something to read from the pipe at
 time of cancellation.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L226>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L227>`_
 
 .. code-block:: cpp
 
@@ -217,7 +217,7 @@ Only if we actually close() the pipe, cancellation is reliable. If an asynchrono
 already scheduled for completion when closing the pipe, that operation still completes
 successfully. But on the next attempt to read something we get 'bad_file_descriptor'.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L256>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L257>`_
 
 .. code-block:: cpp
 
@@ -251,7 +251,7 @@ This is similar to binding an executor or allocator to a token.
 
 Then, when you want to cancel an operation, you can 'emit' a cancellation signal.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L286>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L287>`_
 
 .. code-block:: cpp
 
@@ -283,7 +283,7 @@ CancelAfter
 Using cancellation slots manually is verbose, so there is a completion token adapter
 called `cancel_after` that does the grunt work of creating the timer four you.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L312>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L313>`_
 
 .. code-block:: cpp
 
@@ -306,7 +306,7 @@ CancelFixture
 We can also apply the timeout to the top level coroutine. it will be forwarded to the innermost
 currently active coroutine and any asynchronous operations within.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L329>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L330>`_
 
 .. code-block:: cpp
 
@@ -332,7 +332,7 @@ asynchronous) cleanup?
 Try to catch the 'operation_cancelled' exception raised from running log().
 If we do that, the coroutine continues, but the error will be re-thrown on the next co_await.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L351>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L352>`_
 
 .. code-block:: cpp
 
@@ -362,7 +362,7 @@ WHEN_log_returns_error_as_tuple_THEN_rethrows_on_next_await
 
 Same as above, but with as_tuple instead of catch().
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L375>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L376>`_
 
 .. code-block:: cpp
 
@@ -387,7 +387,7 @@ WHEN_cancellation_state_is_reset_THEN_does_not_throw_on_next_await
 
 To fix this, we can reset the cancellation state before the next co_await.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L396>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L397>`_
 
 .. code-block:: cpp
 
@@ -412,7 +412,7 @@ WHEN_log_is_resumed_after_cancellation_THEN_ping_completes
 
 Resetting the cancellation state also allows us to re-start the `log()` coroutine.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L437>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L438>`_
 
 .. code-block:: cpp
 
@@ -454,7 +454,7 @@ is very different.
 If we want cancellation to arrive at `async_execute()` instead of `log()`, we could try to
 spawn the logging into the background...
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L475>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L476>`_
 
 .. code-block:: cpp
 
@@ -466,7 +466,7 @@ spawn the logging into the background...
          co_return co_await async_execute(std::move(child));
       };
 
-      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
       EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(0);
       EXPECT_CALL(*this, on_exit(0));
       co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -492,7 +492,7 @@ This means tht we can use it to help with 'structured concurrency'.
 
     There is no such thing as an "async destructor".
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L509>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L510>`_
 
 .. code-block:: cpp
 
@@ -522,7 +522,7 @@ WHEN_log_uses_promise_THEN_is_cancelled_on_destruction
 This test is similar to the one before, but destroys the promise earlier, after a sleep().
 This leads to cancellation of the log() coroutine.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L535>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L536>`_
 
 .. code-block:: cpp
 
@@ -554,7 +554,7 @@ If we actually wait on the promise, finally, we have what we want:
 2) We can read the remaining output
 3) Exit is handled gracefully
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L563>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L564>`_
 
 .. code-block:: cpp
 
@@ -569,7 +569,7 @@ If we actually wait on the promise, finally, we have what we want:
          co_return exit_code;
       };
 
-      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
       EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
       EXPECT_CALL(*this, on_exit(0));
       co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -584,18 +584,21 @@ open, keeping `log_stdout` alive.
 
 So, when waiting for the logging coroutine to finish, apply a timeout.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L587>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L588>`_
 
 .. code-block:: cpp
 
    TEST_F(ProcessCancellation, WHEN_descriptors_are_kept_open_THEN_times_out)
    {
-      test = [this](readable_pipe out, bp::process child) -> awaitable<ExitCode>
+      testWithErr = [this](readable_pipe out, readable_pipe err,
+                           bp::process child) -> awaitable<ExitCode>
       {
          co_await this_coro::reset_cancellation_state(enable_total_cancellation());
 
          auto ex = co_await this_coro::executor;
-         auto promise = co_spawn(ex, log_stdout(out), use_promise);
+         auto promise = make_parallel_group(co_spawn(ex, log_stdout(out), deferred),
+                                            co_spawn(ex, log_stderr(err), deferred))
+                           .async_wait(wait_for_all(), use_promise);
 
          auto [ec, exit_code] = co_await async_execute(std::move(child), as_tuple);
          std::println("execute: exit code {} (ec={})", exit_code, what(ec));
@@ -604,13 +607,15 @@ So, when waiting for the logging coroutine to finish, apply a timeout.
          co_await (std::move(promise)(use_awaitable) || sleep(1s));
 
          EXPECT_TRUE(out.is_open());
+         EXPECT_FALSE(err.is_open());
          co_return exit_code;
       };
 
       EXPECT_CALL(*this, on_stdout("STDOUT")).Times(1);
       EXPECT_CALL(*this, on_exit(SIGINT));
 
-      co_spawn(executor, execute("/usr/bin/bash", {"-c", "sleep 10& echo STDOUT; sleep 5"}),
+      co_spawn(executor,
+               execute("/usr/bin/bash", {"-c", "exec 2>&-; (sleep 10 >&1)& echo STDOUT; sleep 5"}),
                cancel_after(150ms, cancellation_type::total, token()));
    }
 
@@ -619,7 +624,7 @@ WHEN_wait_for_pipe_long_enough_THEN_sees_eof
 
 If the file descriptors are closed within the timeout (here: 1s), we can still see the EOF.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L616>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L622>`_
 
 .. code-block:: cpp
 
@@ -663,7 +668,7 @@ forwards it to both subtasks. Only async_execute() reacts to it, signalling SIGI
 process and completing with the exit code eventually. The other operation in the parallel group,
 log(), does not react to the cancellation because it only supports 'terminal|partial'.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L656>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L662>`_
 
 .. code-block:: cpp
 
@@ -692,7 +697,7 @@ WHEN_parallel_group_operator_THEN_cancellation_fails
 
 (No description provided.)
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L700>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L706>`_
 
 .. code-block:: cpp
 
@@ -709,7 +714,7 @@ WHEN_parallel_group_operator_THEN_cancellation_fails
          co_return status;
       };
 
-      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
       EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
       EXPECT_CALL(*this, on_exit(0));
       co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -723,7 +728,7 @@ to async_execute() ONLY. That is easy to do, but we also have to make sure that 
 forwarding behaviour is not applied to co_spawn() as well. So we bind an empty cancellation slot
 to the co_spawn() completion token instead:
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L727>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L733>`_
 
 .. code-block:: cpp
 
@@ -741,7 +746,7 @@ to the co_spawn() completion token instead:
          co_return status;
       };
 
-      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0);  // cancellation did happened
+      EXPECT_CALL(*this, on_stdout(HasSubstr("5 packets"))).Times(0); // cancellation did happened
       EXPECT_CALL(*this, on_stdout(HasSubstr("rtt"))).Times(1);
       EXPECT_CALL(*this, on_exit(0));
       co_spawn(executor, ping(), cancel_after(150ms, cancellation_type::total, token()));
@@ -752,7 +757,7 @@ WHEN_child_is_terminated_THEN_exits_with_sigterm
 
 Cancellation type 'partial': child.request_exit() (SIGTERM)
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L752>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L758>`_
 
 .. code-block:: cpp
 
@@ -774,7 +779,7 @@ WHEN_child_is_killed_THEN_exits_with_sigkill
 
 Sending a SIGKILL should always result in immediate termination of the process.
 
-`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L770>`_
+`View source on GitHub <https://github.com/pgit/asio-coro/blob/master/test/test_process_cancellation.cpp#L776>`_
 
 .. code-block:: cpp
 
