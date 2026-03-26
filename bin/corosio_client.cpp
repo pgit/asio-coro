@@ -25,6 +25,7 @@ namespace capy = boost::capy;
 namespace po = boost::program_options;
 
 using namespace std::chrono_literals;
+using capy::io_result;
 
 struct ClientConfig
 {
@@ -33,7 +34,7 @@ struct ClientConfig
    std::optional<std::chrono::steady_clock::duration> duration = 1s;
 };
 
-capy::task<size_t> write_loop(corosio::tcp_socket& socket, ClientConfig config)
+capy::task<io_result<size_t>> write_loop(corosio::tcp_socket& socket, ClientConfig config)
 {
    std::vector<uint8_t> payload(config.buffer_size);
    std::iota(payload.begin(), payload.end(), uint8_t{0});
@@ -50,8 +51,7 @@ capy::task<size_t> write_loop(corosio::tcp_socket& socket, ClientConfig config)
          break;
 
       size_t chunk = std::min(limit - total, payload.size());
-      auto [wec, wn] = co_await capy::write(
-         socket, capy::const_buffer(payload.data(), chunk));
+      auto [wec, wn] = co_await capy::write(socket, capy::const_buffer(payload.data(), chunk));
       if (wec)
          break;
 
@@ -60,24 +60,24 @@ capy::task<size_t> write_loop(corosio::tcp_socket& socket, ClientConfig config)
 
    socket.shutdown(corosio::tcp_socket::shutdown_send);
 
-   co_return total;
+   co_return {{}, total};
 }
 
-capy::task<size_t> read_loop(corosio::tcp_socket& socket, size_t buffer_size)
+capy::task<io_result<size_t>> read_loop(corosio::tcp_socket& socket, size_t buffer_size)
 {
    std::vector<char> buffer(buffer_size);
    size_t total = 0;
    for (;;)
    {
-      auto [rec, rn] = co_await socket.read_some(
-         capy::mutable_buffer(buffer.data(), buffer.size()));
+      auto [rec, rn] =
+         co_await socket.read_some(capy::mutable_buffer(buffer.data(), buffer.size()));
       if (rec)
          break;
 
       total += rn;
    }
 
-   co_return total;
+   co_return {{}, total};
 }
 
 struct SessionStats
@@ -88,10 +88,8 @@ struct SessionStats
    bool connected = false;
 };
 
-capy::task<SessionStats> run_session(corosio::io_context& ioc,
-                                     ClientConfig config,
-                                     std::string host,
-                                     uint16_t port)
+capy::task<SessionStats> run_session(corosio::io_context& ioc, ClientConfig config,
+                                     std::string host, uint16_t port)
 {
    SessionStats stats;
    corosio::resolver resolver(ioc);
@@ -134,9 +132,8 @@ capy::task<SessionStats> run_session(corosio::io_context& ioc,
    std::println("connected to: {}:{}", host, port);
 
    auto start = std::chrono::steady_clock::now();
-   auto [total_written, total_read] = co_await capy::when_all(
-      write_loop(socket, config),
-      read_loop(socket, config.buffer_size));
+   auto [ec, total_written, total_read] =
+      co_await capy::when_all(write_loop(socket, config), read_loop(socket, config.buffer_size));
 
    socket.close();
    stats.written = total_written;
@@ -145,19 +142,16 @@ capy::task<SessionStats> run_session(corosio::io_context& ioc,
    co_return stats;
 }
 
-capy::task<void> client_task(corosio::io_context& ioc,
-                             ClientConfig config,
-                             std::string host,
-                             uint16_t port,
-                             std::atomic<size_t>& total_bytes)
+capy::task<void> client_task(corosio::io_context& ioc, ClientConfig config, std::string host,
+                             uint16_t port, std::atomic<size_t>& total_bytes)
 {
    auto stats = co_await run_session(ioc, config, std::move(host), port);
    if (stats.connected)
    {
       auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(stats.elapsed);
       auto delta = static_cast<int64_t>(stats.read) - static_cast<int64_t>(stats.written);
-      std::println("wrote {} and read {} (Δ {}) in {}ms",
-                   Bytes(stats.written), Bytes(stats.read), delta, elapsed_ms.count());
+      std::println("wrote {} and read {} (Δ {}) in {}ms", Bytes(stats.written), Bytes(stats.read),
+                   delta, elapsed_ms.count());
    }
    total_bytes.fetch_add(stats.read, std::memory_order_relaxed);
 }
@@ -176,21 +170,19 @@ int main(int argc, char* argv[])
    Config config;
 
    po::options_description desc("Allowed options");
-   desc.add_options()
-      ("help,h", "produce help message")
-      ("host", po::value<std::string>(&config.host)->default_value(config.host),
-       "host to connect to")
-      ("port,p", po::value(&config.port)->default_value(config.port)->value_name("PORT"),
-       "port number")
-      ("connections,c",
-       po::value(&config.connections)->default_value(config.connections)->value_name("N"),
-       "number of connections")
-      ("threads,t",
-       po::value(&config.threads)->default_value(config.threads)->value_name("N"),
-       "number of IO contexts to run in parallel")
-      ("duration,d",
-       po::value(&config.duration)->default_value(config.duration)->value_name("SECONDS"),
-       "number of seconds to run before closing the connection");
+   desc.add_options()("help,h", "produce help message")(
+      "host", po::value<std::string>(&config.host)->default_value(config.host),
+      "host to connect to")("port,p",
+                            po::value(&config.port)->default_value(config.port)->value_name("PORT"),
+                            "port number")(
+      "connections,c",
+      po::value(&config.connections)->default_value(config.connections)->value_name("N"),
+      "number of connections")(
+      "threads,t", po::value(&config.threads)->default_value(config.threads)->value_name("N"),
+      "number of IO contexts to run in parallel")(
+      "duration,d",
+      po::value(&config.duration)->default_value(config.duration)->value_name("SECONDS"),
+      "number of seconds to run before closing the connection");
 
    po::variables_map vm;
    try
